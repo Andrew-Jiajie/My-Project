@@ -1,0 +1,381 @@
+C51 COMPILER V9.53.0.0   I2C_EEPROM                                                        05/03/2017 08:42:50 PAGE 1   
+
+
+C51 COMPILER V9.53.0.0, COMPILATION OF MODULE I2C_EEPROM
+OBJECT MODULE PLACED IN .\Output\I2C_EEPROM.obj
+COMPILER INVOKED BY: C:\Keil\C51_V9.53\C51\BIN\C51.EXE Code\I2C_EEPROM.c OPTIMIZE(8,SPEED) BROWSE INCDIR(..\..\Include) 
+                    -DEFINE(FOSC_160000) DEBUG OBJECTEXTEND PRINT(.\LST\I2C_EEPROM.lst) TABS(2) OBJECT(.\Output\I2C_EEPROM.obj)
+
+line level    source
+
+   1          /*--------------------------------------------------------------------------------------------------------
+             --*/
+   2          /*                                                                                                        
+             - */
+   3          /* Copyright(c) 2017 Nuvoton Technology Corp. All rights reserved.                                        
+             - */
+   4          /*                                                                                                        
+             - */
+   5          /*--------------------------------------------------------------------------------------------------------
+             --*/
+   6          
+   7          //********************************************************************************************************
+             -***
+   8          //  Website: http://www.nuvoton.com
+   9          //  E-Mail : MicroC-8bit@nuvoton.com
+  10          //  Date   : Jan/21/2017
+  11          //********************************************************************************************************
+             -***
+  12          
+  13          //********************************************************************************************************
+             -***
+  14          //  File Function: N76E003 I2C demo code, Slave Address of 24LC64 = 0xA0
+  15          //
+  16          //   ____________           ______________ 
+  17          //  |            |   SDA    |             |
+  18          //  |            |<-------->|             |
+  19          //  |            |          |             |
+  20          //  |N76E003(M) |          |   24LC64(S) |
+  21          //  |            |   SCL    |             |
+  22          //  |            |--------->|             |
+  23          //  |____________|          |_____________|
+  24          //
+  25          //  Microchip I2C EEPROM 24xx64 (64K Bit) is used as the slave device.  
+  26          //  The page size are 32Byte. Total are 256 page.
+  27          //  If verification passes, Port3 will show 0x78. If there is any failure
+  28          //  occured during the progress, Port3 will show 0x00.
+  29          //********************************************************************************************************
+             -***
+  30          
+  31          #include "N76E003.h"
+  32          #include "SFR_Macro.h"
+  33          #include "Function_define.h"
+  34          #include "Common.h"
+  35          #include "Delay.h"
+  36          
+  37          
+  38          //********************************************************************************************************
+             -***
+  39          #define SYS_CLK_EN              0
+  40          #define SYS_SEL                 2
+  41          #define SYS_DIV_EN              0                   //0: Fsys=Fosc, 1: Fsys = Fosc/(2*CKDIV)
+  42          #define SYS_DIV                 1
+  43          #define I2C_CLOCK               2
+  44          
+C51 COMPILER V9.53.0.0   I2C_EEPROM                                                        05/03/2017 08:42:50 PAGE 2   
+
+  45          #define EEPROM_SLA              0xA0
+  46          #define EEPROM_WR               0
+  47          #define EEPROM_RD               1
+  48          
+  49          #define LED                     P3
+  50          //#define PAGE_SIZE               32
+  51          //#define PAGE_NUMBER             4
+  52          #define PAGE_SIZE               8
+  53          #define PAGE_NUMBER             32
+  54          
+  55          #define ERROR_CODE              0x78
+  56          #define TEST_OK                 0x00
+  57          
+  58          //========================================================================================================
+  59          void Init_I2C(void)
+  60          {
+  61   1          /* Set I2C clock rate */
+  62   1          I2CLK = I2C_CLOCK; 
+  63   1      
+  64   1          /* Enable I2C */
+  65   1          set_I2CEN;                                   
+  66   1      }
+  67          //========================================================================================================
+  68          void One_Page_Read(UINT8 u8PageNumber,UINT8 u8DAT)
+  69          {
+  70   1          UINT8  u8Count;
+  71   1          UINT16 u16Address;
+  72   1      
+  73   1          u16Address = (UINT16)u8PageNumber*32;
+  74   1      
+  75   1          /* Step1 */
+  76   1          set_STA;                                /* Send Start bit to I2C EEPROM */
+  77   1          clr_SI;
+  78   1          while (!SI);
+  79   1          if (I2STAT != 0x08)                     /* 0x08:  A START condition has been transmitted*/
+  80   1          {
+  81   2              LED = ERROR_CODE;
+  82   2              printf("\nI2C 'Send STA' error");
+  83   2              while (1);
+  84   2          }
+  85   1      
+  86   1          /* Step2 */
+  87   1          I2DAT = (EEPROM_SLA | EEPROM_WR);       /* Send (SLA+W) to EEPROM */
+  88   1          clr_STA;                                /* Clear STA and Keep SI value in I2CON */    
+  89   1          clr_SI;
+  90   1          while (!SI);
+  91   1          if (I2STAT != 0x18)                     /* 0x18: SLA+W has been transmitted; ACK has been received */ 
+             -             
+  92   1          {
+  93   2              LED = ERROR_CODE;
+  94   2              printf("\nI2C 'Send SLA+W' error");
+  95   2              while(1);
+  96   2          }
+  97   1      
+  98   1          /* Step3 */
+  99   1          I2DAT = HIBYTE(u16Address);             /* Send I2C EEPROM's High Byte Address */
+ 100   1          clr_SI;
+ 101   1          while (!SI);
+ 102   1          if (I2STAT != 0x28)                     /* 0x28:  Data byte in S1DAT has been transmitted; ACK has bee
+             -n received */              
+ 103   1          {
+ 104   2              LED = ERROR_CODE;
+C51 COMPILER V9.53.0.0   I2C_EEPROM                                                        05/03/2017 08:42:50 PAGE 3   
+
+ 105   2              printf("\nI2C 'Send I2C High Byte Address' error");
+ 106   2              while (1);
+ 107   2          }
+ 108   1      
+ 109   1          /* Step4 */
+ 110   1          I2DAT = LOBYTE(u16Address);             /* Send I2C EEPROM's Low Byte Address */
+ 111   1          clr_SI;
+ 112   1          while (!SI);
+ 113   1          if (I2STAT != 0x28)                     /* 0x28:  Data byte in S1DAT has been transmitted; ACK has bee
+             -n received */             
+ 114   1          {
+ 115   2              LED = ERROR_CODE;
+ 116   2              printf("\nI2C 'Send I2C Low Byte Address' error");
+ 117   2              while (1);
+ 118   2          }
+ 119   1      
+ 120   1          /* Step5 */
+ 121   1          set_STA;                                /* Repeated START */
+ 122   1          clr_SI; 
+ 123   1          while (!SI);
+ 124   1          if (I2STAT != 0x10)                     /* 0x10: A repeated START condition has been transmitted */
+ 125   1          {
+ 126   2              LED = ERROR_CODE;
+ 127   2              printf("\nI2C 'Send STA' error");
+ 128   2              while (1);
+ 129   2          }
+ 130   1      
+ 131   1          /* Step6 */
+ 132   1          clr_STA;                                /* Clear STA and Keep SI value in I2CON */
+ 133   1          I2DAT = (EEPROM_SLA | EEPROM_RD);       /* Send (SLA+R) to EEPROM */
+ 134   1          clr_SI;
+ 135   1          while (!SI);
+ 136   1          if (I2STAT != 0x40)                     /* 0x40:  SLA+R has been transmitted; ACK has been received */
+             -              
+ 137   1          {
+ 138   2              LED = ERROR_CODE;
+ 139   2              printf("\nI2C 'Send SLA+R' error");
+ 140   2              while (1);
+ 141   2          }
+ 142   1      
+ 143   1          /* Step7 */                             /* Verify I2C EEPROM data */
+ 144   1          for (u8Count = 0; u8Count <PAGE_SIZE; u8Count++)
+ 145   1          {
+ 146   2              set_AA;                             /* Set Assert Acknowledge Control Bit */
+ 147   2              clr_SI;
+ 148   2              while (!SI);
+ 149   2              if (I2STAT != 0x50)                 /* 0x50:Data byte has been received; NOT ACK has been returned
+             - */              
+ 150   2              {
+ 151   3                  LED = ERROR_CODE;
+ 152   3                  printf("\nI2C 'No Ack' error");
+ 153   3                  while (1);
+ 154   3              }
+ 155   2             
+ 156   2              if (I2DAT != u8DAT)                 /* Send the Data to EEPROM */    
+ 157   2              {
+ 158   3                  LED = ERROR_CODE;
+ 159   3                  printf("\nI2C 'Read data' error");
+ 160   3                  while (1);
+ 161   3              }
+ 162   2              u8DAT = ~u8DAT; 
+ 163   2          }
+C51 COMPILER V9.53.0.0   I2C_EEPROM                                                        05/03/2017 08:42:50 PAGE 4   
+
+ 164   1      
+ 165   1          /* Step8 */
+ 166   1          clr_AA;                                 /* Send a NACK to disconnect 24xx64 */
+ 167   1          clr_SI;
+ 168   1          while (!SI);
+ 169   1          if (I2STAT != 0x58)                     /* 0x58:Data byte has been received; ACK has been returned */
+ 170   1          {
+ 171   2              LED = ERROR_CODE;
+ 172   2              printf("\nI2C 'Ack' error");
+ 173   2              while (1);
+ 174   2          }
+ 175   1          
+ 176   1          /* Step9 */    
+ 177   1          clr_SI;
+ 178   1          set_STO;
+ 179   1          while (STO);                            /* Check STOP signal */ 
+ 180   1      }
+ 181          //========================================================================================================
+ 182          void One_Page_Write(UINT8 u8PageNumber,UINT8 u8DAT)
+ 183          {
+ 184   1          UINT8  u8Count;
+ 185   1          UINT16 u16Address;
+ 186   1      
+ 187   1          u16Address = (UINT16)u8PageNumber*32;
+ 188   1      
+ 189   1          /* Step1 */
+ 190   1          set_STA;                                /* Send Start bit to I2C EEPROM */         
+ 191   1          clr_SI;
+ 192   1          while (!SI);
+ 193   1          if (I2STAT != 0x08)                     /* 0x08:  A START condition has been transmitted*/
+ 194   1          {
+ 195   2              LED = ERROR_CODE;
+ 196   2              printf("\nI2C 'Send STA' error");
+ 197   2              while (1);
+ 198   2          }
+ 199   1      
+ 200   1          /* Step2 */
+ 201   1          clr_STA;                                /* Clear STA and Keep SI value in I2CON */
+ 202   1          I2DAT = EEPROM_SLA | EEPROM_WR;         /* Send (SLA+W) to EEPROM */
+ 203   1          clr_SI;
+ 204   1          while (!SI);
+ 205   1          if (I2STAT != 0x18)                     /* 0x18: SLA+W has been transmitted; ACK has been received */ 
+             -            
+ 206   1          {
+ 207   2              LED = ERROR_CODE;
+ 208   2              printf("\nI2C 'Send SLA+W' error");
+ 209   2              while (1);
+ 210   2          }
+ 211   1      
+ 212   1          /* Step3 */
+ 213   1          I2DAT = HIBYTE(u16Address);             /* Send EEPROM's High Byte Address */
+ 214   1          clr_SI;
+ 215   1          while (!SI);
+ 216   1          if (I2STAT != 0x28)                     /* 0x28:  Data byte in S1DAT has been transmitted; ACK has bee
+             -n received */
+ 217   1          {
+ 218   2              LED = ERROR_CODE;
+ 219   2              printf("\nI2C 'Send High byte address' error");
+ 220   2              while (1);
+ 221   2          }
+ 222   1      
+ 223   1          /* Step4 */
+C51 COMPILER V9.53.0.0   I2C_EEPROM                                                        05/03/2017 08:42:50 PAGE 5   
+
+ 224   1          I2DAT = LOBYTE(u16Address);             /* Send EEPROM's Low Byte Address */
+ 225   1          clr_SI;
+ 226   1          while (!SI);
+ 227   1          if (I2STAT != 0x28)                     /* 0x28:  Data byte in S1DAT has been transmitted; ACK has bee
+             -n received */
+ 228   1          {
+ 229   2              LED = ERROR_CODE;
+ 230   2              printf("\nI2C 'Send Low byte address' error");
+ 231   2              while (1);
+ 232   2          }
+ 233   1      
+ 234   1          /* Step5 */
+ 235   1                                                  /* Write data to I2C EEPROM */
+ 236   1          for (u8Count = 0; u8Count < PAGE_SIZE; u8Count++)
+ 237   1          {
+ 238   2              I2DAT = u8DAT;                      /* Send data to EEPROM */
+ 239   2              clr_SI;
+ 240   2              while (!SI);
+ 241   2              if (I2STAT != 0x28)                 /* 0x28:  Data byte in S1DAT has been transmitted; ACK has bee
+             -n received */
+ 242   2              {
+ 243   3                  LED = ERROR_CODE;
+ 244   3                  printf("\nI2C 'Write Data' error");
+ 245   3                  while (1);
+ 246   3              }   
+ 247   2              u8DAT = ~u8DAT;        
+ 248   2          }
+ 249   1                                                  //After STOP condition, a inner EEPROM timed-write-cycle 
+ 250   1                                                  //will occure and EEPROM will not response to outside command
+ 251   1                                                  /* 0x18: SLA+W has been transmitted; ACK has been received */
+ 252   1          /* Step6 */
+ 253   1          do
+ 254   1          {
+ 255   2              set_STO;                            /* Set I2C STOP Control Bit */
+ 256   2              clr_SI;
+ 257   2              while (STO);                        /* Check STOP signal */
+ 258   2              
+ 259   2              set_STA;                            /* Check if no ACK is returned by EEPROM, it is under timed-wr
+             -ite cycle */
+ 260   2              clr_SI;
+ 261   2              while (!SI);
+ 262   2              if (I2STAT != 0x08)                 /* 0x08:  A START condition has been transmitted*/
+ 263   2              {
+ 264   3                  LED = ERROR_CODE;
+ 265   3                  printf("\nI2C 'Wait Ready' error");
+ 266   3                  while (1);
+ 267   3              }
+ 268   2      
+ 269   2              clr_STA;                            /* Clear STA and Keep SI value in I2CON */
+ 270   2              I2DAT = (EEPROM_SLA | EEPROM_WR);   /* Send (SLA+W) to EEPROM */
+ 271   2              clr_SI;
+ 272   2              while (!SI);
+ 273   2          }while(I2STAT != 0x18);
+ 274   1      
+ 275   1          /* Step7 */
+ 276   1          set_STO;                                /* Set STOP Bit to I2C EEPROM */
+ 277   1          clr_SI;
+ 278   1          while (STO);                            /* Check STOP signal */
+ 279   1      }
+ 280          //========================================================================================================
+ 281          void main(void)
+ 282          {
+C51 COMPILER V9.53.0.0   I2C_EEPROM                                                        05/03/2017 08:42:50 PAGE 6   
+
+ 283   1      
+ 284   1          Set_All_GPIO_Quasi_Mode;
+ 285   1          InitialUART0_Timer3(115200);
+ 286   1        
+ 287   1          /* Initial I2C function */
+ 288   1          Init_I2C();                                 //initial I2C circuit
+ 289   1          
+ 290   1          /* page0 R/W */
+ 291   1          printf ("\n\n24LC64 Page0 Write (0x55,0xAA...)...");
+ 292   1          One_Page_Write(0,0x55);                     //page0, write 0x55,0xAA,........
+ 293   1      
+ 294   1          printf ("\n\n24LC64 Page0 Read...");
+ 295   1          One_Page_Read (0,0x55);                     //page0, read  0x55,0xAA,........
+ 296   1      
+ 297   1          /* page1 R/W */
+ 298   1          printf ("\n\n24LC64 Page1 Write (0x00,0xFF...)...");
+ 299   1          One_Page_Write(1,0x00);                     //page1, write 0x00,0xFF,........
+ 300   1          printf ("\n\n24LC64 Page1 Read...");
+ 301   1          One_Page_Read (1,0x00);                     //page1, read  0x00,0xFF,........
+ 302   1      
+ 303   1          /* page2 R/W */
+ 304   1          printf ("\n\n24LC64 Page2 Write (0xAA,0x55...)...");
+ 305   1          One_Page_Write(2,0xAA);                     //page2, write 0xAA,0x55,........
+ 306   1          printf ("\n\n24LC64 Page2 Read...");
+ 307   1          One_Page_Read (2,0xAA);                     //page2, read  0xAA,0x55,........
+ 308   1      
+ 309   1          /* page3 R/W */
+ 310   1          printf ("\n\n24LC64 Page3 Write (0xFF,0x00...)...");
+ 311   1          One_Page_Write(3,0xFF);                     //page3, write 0xFF,0x00,........
+ 312   1          printf ("\n\n24LC64 Page3 Read...");
+ 313   1          One_Page_Read (3,0xFF);                     //page3, read  0xFF,0x00,........
+ 314   1      
+ 315   1          /* page255 R/W */
+ 316   1          printf ("\n\n24LC64 Page255 Write (0x0F,0xF0...)...");
+ 317   1          One_Page_Write(255,0x0F);                   //page255, write 0x0F,0xF0,........
+ 318   1          printf ("\n\n24LC64 Page255 Read...");
+ 319   1          One_Page_Read (255,0x0F);                   //page255, read  0x0F,0xF0,........
+ 320   1      
+ 321   1          /* ==== Test Pass ==== */      
+ 322   1          printf ("\n\N76E003 <--> 24LC64, I2C Demo Code test pass...");
+ 323   1      
+ 324   1          while (1);
+ 325   1      /* =================== */
+ 326   1      }
+ 327          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    710    ----
+   CONSTANT SIZE    =    691    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----       8
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

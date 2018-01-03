@@ -1,0 +1,304 @@
+C51 COMPILER V9.53.0.0   GPIO                                                              01/03/2018 12:50:18 PAGE 1   
+
+
+C51 COMPILER V9.53.0.0, COMPILATION OF MODULE GPIO
+OBJECT MODULE PLACED IN .\Output\GPIO.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE Code\GPIO.C LARGE OPTIMIZE(4,SPEED) BROWSE INCDIR(..\..\Include) DEFINE(
+                    -FOSC_160000) DEBUG OBJECTEXTEND PRINT(.\LST\GPIO.lst) TABS(2) OBJECT(.\Output\GPIO.obj)
+
+line level    source
+
+   1          /*--------------------------------------------------------------------------------------------------------
+             --*/
+   2          /*                                                                                                        
+             - */
+   3          /* Copyright(c) 2017 Nuvoton Technology Corp. All rights reserved.                                        
+             - */
+   4          /*                                                                                                        
+             - */
+   5          /*--------------------------------------------------------------------------------------------------------
+             --*/
+   6          
+   7          //********************************************************************************************************
+             -***
+   8          //  Website: http://www.nuvoton.com
+   9          //  E-Mail : MicroC-8bit@nuvoton.com
+  10          //  Date   : Jan/21/2017
+  11          //********************************************************************************************************
+             -***
+  12          
+  13          //********************************************************************************************************
+             -***
+  14          //  File Function: N76E003 GPIO demo code
+  15          //********************************************************************************************************
+             -***
+  16          #include "N76E003.h"
+  17          #include "SFR_Macro.h"
+  18          #include "Function_define.h"
+  19          #include "Common.h"
+  20          #include "Delay.h"
+  21          
+  22          #define DEBUG 0
+  23          #define HIGH 1
+  24          #define LOW 0
+  25          
+  26          
+  27          void Delay_1ms(int time)
+  28          {
+  29   1        int i,j;
+  30   1        for(j=0; j<time; j++)
+  31   1          for (i = 0; i < 729; i++);
+  32   1      }
+  33          
+  34          void Delay_100us(int time)
+  35          {
+  36   1        int i,j;
+  37   1        for(j=0; j<time; j++)
+  38   1          for (i = 0; i < 72; i++);
+  39   1      }
+  40          
+  41          /*------------------------------------------------
+  42          The main C function.  Program execution starts
+  43          here after stack initialization.
+  44          ------------------------------------------------*/
+  45          typedef unsigned char u8;
+C51 COMPILER V9.53.0.0   GPIO                                                              01/03/2018 12:50:18 PAGE 2   
+
+  46          u8 music_play[]={0x01};
+  47          u8 music_stop[]={0x0E};
+  48          u8 music_next[]={0x03};
+  49          u8 volume_set[]={0x31,0x10};
+  50          u8 source_TF[]={0x35,0x01};
+  51          u8 source_FLASH[]={0x35,0x04};
+  52          u8 music_in_root[]={0x34,0x03,0x01};
+  53          u8 folder_and_num[]={0x42,0x02,0x01};
+  54          
+  55          u8 music_state[]={0x10};
+  56          u8 volume_get[]={0x11};
+  57          
+  58          u8 return_ok[]={0x7E,0x02,0x00,0xEF};
+  59          u8 return_finished[]={0x7E,0x04,   0x3E,    0x00,0x00,0xEF};  //current music finished
+  60          u8 return_state[]={0x7E,0x03,0x10,0x00,   //0(STOP) 1(PLAY) 2(PAUS) 3(FF) 4(FR)
+  61                            0xEF,0x7E,0x02,0x00,0xEF}; //when music_state send, will return the value
+  62          u8 state_str[12];
+  63          u8 get_state()
+  64          {
+  65   1          int result_num=0;
+  66   1        int timeout=250;
+  67   1      
+  68   1        while(!RI && timeout--){
+  69   2          Delay_100us(1);   //delay 25ms
+  70   2        }
+  71   1          while (RI) {
+  72   2            state_str[result_num++]=Receive_Data_From_UART0();
+  73   2          timeout=8000;
+  74   2          while(!RI && timeout--);
+  75   2          }
+  76   1          return result_num;
+  77   1      }
+  78          
+  79          void send_cmd(u8* cmd, u8 num){
+  80   1        u8 count=0;
+  81   1        u8 command[15];
+  82   1        u8 tmp_cnt=0;
+  83   1        int out_cnt=0;
+  84   1        
+  85   1        command[count++]=0x7E;
+  86   1        command[count++]=0x01+num;
+  87   1        while(tmp_cnt<num){
+  88   2          command[count++]=*(cmd+tmp_cnt);
+  89   2          tmp_cnt++;
+  90   2        }
+  91   1        command[count]=0xEF;
+  92   1        while(out_cnt<=count){
+  93   2          Send_Data_To_UART0(command[out_cnt++]);
+  94   2        }
+  95   1      }
+  96          
+  97          void Control_CMD(u8* cmd, u8 num){
+  98   1        int set_correct=0;
+  99   1          u8 timeout=3;
+ 100   1          int str_num;
+ 101   1          int j;
+ 102   1          while(!set_correct && timeout--){
+ 103   2              send_cmd(cmd, num);
+ 104   2            str_num = get_state();
+ 105   2      #if DEBUG
+                    Send_Data_To_UART0(0xAA);
+                    for(j=0; j<str_num; j++){
+C51 COMPILER V9.53.0.0   GPIO                                                              01/03/2018 12:50:18 PAGE 3   
+
+                      Send_Data_To_UART0(state_str[j]);
+                    }
+                    Send_Data_To_UART0(0xBB);
+              #endif
+ 112   2              for(j=0; j<str_num-3; j++){
+ 113   3                if(state_str[j]==0x7e && state_str[j+1]==0x02 && state_str[j+2]==0x00 && state_str[j+3]==0xef){
+ 114   4                    set_correct=1;
+ 115   4      #if DEBUG
+                        Send_Data_To_UART0(0xCC);
+              #endif
+ 118   4                      break;
+ 119   4                }
+ 120   3              }
+ 121   2          }
+ 122   1      
+ 123   1      }
+ 124          
+ 125          
+ 126          void Specify_Volume(u8 num)
+ 127          {
+ 128   1        
+ 129   1      #if 0
+                volume_set[1] = num;
+                Control_CMD(volume_set, sizeof(volume_set));
+              #else
+ 133   1        int set_correct=0;
+ 134   1        u8 timeout=3;
+ 135   1        int str_num;
+ 136   1        int j;
+ 137   1        volume_set[1] = num;
+ 138   1        while(!set_correct && timeout--){
+ 139   2          send_cmd(volume_set, sizeof(volume_set));
+ 140   2        Delay_1ms(12);  // 15ms
+ 141   2          send_cmd(volume_get, sizeof(volume_get));
+ 142   2          str_num = get_state();
+ 143   2      #if DEBUG
+                Send_Data_To_UART0(0xAA);
+                for(j=0; j<str_num; j++){
+                  Send_Data_To_UART0(state_str[j]);
+                }
+                Send_Data_To_UART0(0xBB);
+              #endif
+ 150   2          for(j=0; j<str_num-3; j++){
+ 151   3            if(state_str[j]==0x7e && state_str[j+2]==0x11 && state_str[j+3]==num){
+ 152   4              set_correct=1;
+ 153   4      #if DEBUG
+                  Send_Data_To_UART0(0xCC);
+              #endif
+ 156   4              break;
+ 157   4            }
+ 158   3          }
+ 159   2        }
+ 160   1      #endif
+ 161   1      }
+ 162          
+ 163          int trig_state=HIGH;
+ 164          void set_trig_state(){
+ 165   1        if(trig_state==0){
+ 166   2          Enable_BIT7_HighLevel_Trig;
+ 167   2          trig_state=1;
+ 168   2        }else if(trig_state==1){
+ 169   2          Enable_BIT7_LowLevel_Trig;
+C51 COMPILER V9.53.0.0   GPIO                                                              01/03/2018 12:50:18 PAGE 4   
+
+ 170   2          trig_state=0;
+ 171   2        }
+ 172   1      }
+ 173          
+ 174          int Button_state=-1;
+ 175          void PinInterrupt_ISR (void) interrupt 7
+ 176          {
+ 177   1        if (PIF == 0x80)
+ 178   1        {
+ 179   2          PIF =0;
+ 180   2          Delay_1ms(15);
+ 181   2          if(trig_state==LOW && P17==LOW){
+ 182   3            Enable_BIT7_RasingEdge_Trig;
+ 183   3            trig_state=HIGH;
+ 184   3            Button_state=1;
+ 185   3          }
+ 186   2          if(trig_state==HIGH && P17==HIGH){
+ 187   3            Enable_BIT7_FallEdge_Trig;
+ 188   3            trig_state=LOW;
+ 189   3            Button_state=0;
+ 190   3          }
+ 191   2          clr_PD;
+ 192   2        }
+ 193   1        return;
+ 194   1      }
+ 195          
+ 196          
+ 197          void main (void) 
+ 198          {
+ 199   1        int  Pin_last_state;
+ 200   1        int volume;
+ 201   1        Set_All_GPIO_Quasi_Mode;          // Define in Function_define.h
+ 202   1        
+ 203   1      #if 1
+ 204   1        InitialUART0_Timer1(9600);
+ 205   1        set_CLOEN; 
+ 206   1        Delay_1ms(50);
+ 207   1        //Specify_Volume(15);
+ 208   1        //send_cmd(music_play, sizeof(music_play));
+ 209   1      #if 1
+ 210   1      P17_Input_Mode;
+ 211   1      set_P0S_7;
+ 212   1      Enable_INT_Port1;
+ 213   1      Enable_BIT7_FallEdge_Trig;
+ 214   1      trig_state=LOW;
+ 215   1      //set_trig_state();
+ 216   1      
+ 217   1      set_EPI;              // Enable pin interrupt
+ 218   1      set_EX0;
+ 219   1      set_EA;               // global enable bit
+ 220   1      
+ 221   1      #endif
+ 222   1        
+ 223   1        Pin_last_state=P17;
+ 224   1        volume=10;
+ 225   1        while(1){
+ 226   2          Delay_1ms(15);
+ 227   2          Send_Data_To_UART0(P17);
+ 228   2          #if 0
+                  if(Pin_last_state==1 && P17==0){
+                    Button_state=1;
+                  }
+C51 COMPILER V9.53.0.0   GPIO                                                              01/03/2018 12:50:18 PAGE 5   
+
+                  if(Pin_last_state==0 && P17==1){
+                    Button_state=0;
+                  }
+                  #endif
+ 236   2          Pin_last_state=P17;
+ 237   2          Button_state=-1;
+ 238   2          set_PD;
+ 239   2          if(Button_state==1){
+ 240   3            //println("pressed");
+ 241   3            folder_and_num[1]=1;
+ 242   3            folder_and_num[2]=4;
+ 243   3            Control_CMD(folder_and_num, sizeof(folder_and_num));
+ 244   3            //send_cmd(music_next, sizeof(music_next));
+ 245   3            Specify_Volume(volume++);
+ 246   3          }
+ 247   2          if(Button_state==0){
+ 248   3            //println("released");
+ 249   3            folder_and_num[1]=2;
+ 250   3            folder_and_num[2]=4;
+ 251   3            Control_CMD(folder_and_num, sizeof(folder_and_num));
+ 252   3            //send_cmd(music_next, sizeof(music_next));
+ 253   3            Specify_Volume(volume++);
+ 254   3      
+ 255   3          }
+ 256   2          if(volume>25)
+ 257   2            volume=10;
+ 258   2        }
+ 259   1      #endif
+ 260   1      }
+ 261          
+ 262          
+ 263          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1272    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =     52      48
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
