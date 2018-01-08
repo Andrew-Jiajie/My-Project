@@ -51,6 +51,8 @@ u8 source_TF[]={0x35,0x01};
 u8 source_FLASH[]={0x35,0x04};
 u8 music_in_root[]={0x34,0x03,0x01};
 u8 folder_and_num[]={0x42,0x02,0x01};
+u8 chip_sleep[]={0x35,0x03};
+u8 chip_wakeup[]={0x35,0x02};
 
 u8 music_state[]={0x10};
 u8 volume_get[]={0x11};
@@ -193,12 +195,15 @@ void PinInterrupt_ISR (void) interrupt 7
 	return;
 }
 
-
+void EXT_INT0 (void) interrupt 0
+{
+	Send_Data_To_UART0(0xAA);
+}
 
 void main (void) 
 {
 	int  Pin_last_state;
-	int volume;
+	int music_num=1;
 	Set_All_GPIO_Quasi_Mode;					// Define in Function_define.h
 	
 #if 1
@@ -215,6 +220,10 @@ Enable_BIT7_FallEdge_Trig;
 trig_state=LOW;
 //set_trig_state();
 
+P30_Input_Mode;
+Enable_BIT0_FallEdge_Trig;
+//Enable_INT_Port3;
+
 set_EPI;							// Enable pin interrupt
 set_EX0;
 set_EA;								// global enable bit
@@ -222,7 +231,7 @@ set_EA;								// global enable bit
 #endif
 	
 	Pin_last_state=P17;
-	volume=10;
+	//Control_CMD(chip_sleep,sizeof(chip_sleep));
 	while(1){
 		Delay_1ms(15);
 		Send_Data_To_UART0(P17);
@@ -240,22 +249,24 @@ set_EA;								// global enable bit
 		if(Button_state==1){
 			//println("pressed");
 			folder_and_num[1]=1;
-			folder_and_num[2]=4;
+			folder_and_num[2]=0;
 			Control_CMD(folder_and_num, sizeof(folder_and_num));
 			//send_cmd(music_next, sizeof(music_next));
-			Specify_Volume(volume++);
+			Specify_Volume(40);
 		}
 		if(Button_state==0){
 			//println("released");
-			folder_and_num[1]=2;
-			folder_and_num[2]=4;
+			folder_and_num[1]=1;
+			folder_and_num[2]=music_num;
+			music_num++;
 			Control_CMD(folder_and_num, sizeof(folder_and_num));
 			//send_cmd(music_next, sizeof(music_next));
-			Specify_Volume(volume++);
+			Specify_Volume(40);
+			if(music_num>12){
+				music_num=1;
+			}
 
 		}
-		if(volume>25)
-			volume=10;
 	}
 #endif
 }
