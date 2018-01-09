@@ -52,7 +52,7 @@ u8 volume_set[]={0x31,0x10};
 u8 source_TF[]={0x35,0x01};
 u8 source_FLASH[]={0x35,0x04};
 u8 music_in_root[]={0x34,0x03,0x01};
-u8 folder_and_num[]={0x42,0x02,0x01};
+u8 folder_and_num[]={0x42,0x01,0x01};
 u8 chip_sleep[]={0x35,0x03};
 u8 chip_wakeup[]={0x35,0x02};
 
@@ -100,7 +100,7 @@ void send_cmd(u8* cmd, u8 num){
 
 void Control_CMD(u8* cmd, u8 num){
 	int set_correct=0;
-    u8 timeout=3;
+    u8 timeout=2;
   	int str_num;
   	int j;
     while(!set_correct && timeout--){
@@ -129,7 +129,7 @@ void Control_CMD(u8* cmd, u8 num){
 
 int Get_Play_State()
 {
-  	u8 timeout=3;
+  	u8 timeout=2;
 	int str_num;
 	int j;
 	
@@ -216,11 +216,13 @@ int Body_Music_Play=0;
 void main (void) 
 {
 	int music_num=1;
+	int play_state=-1;
+
 	Set_All_GPIO_Quasi_Mode;					// Define in Function_define.h
 	
 	InitialUART0_Timer1(9600);
 	set_CLOEN; 
-	Delay_1ms(50);
+	Delay_1ms(800);			//800ms delay for audio chip get ready
 
 #if 1
 	P17_Input_Mode;
@@ -238,16 +240,34 @@ void main (void)
 	set_EA;								// global enable bit
 
 #endif
+	//Control_CMD(folder_and_num, sizeof(folder_and_num));
 	Specify_Volume(15);
+	//Control_CMD(chip_sleep, sizeof(chip_sleep));
+	
 	//Control_CMD(chip_sleep,sizeof(chip_sleep));
 	while(1){
+		set_PD;
 		Button_state=-1;
-		if(Head_Music_Play && Get_Play_State()==PLAYING){
+		play_state=Get_Play_State();
+		if(play_state==-1){
+			Send_Data_To_UART0(0xCC);
+		}
+		if(Head_Music_Play && play_state==PLAYING){
 			Delay_1ms(50);
 		}else if(Body_Music_Play){
+			//Control_CMD(music_stop, sizeof(music_stop));
 			Control_CMD(folder_and_num, sizeof(folder_and_num));
+			//Delay_1ms(10);
+			play_state=Get_Play_State();
+			if(play_state==PLAYING){
+				Body_Music_Play=0;
+			}else{
+				folder_and_num[2]=music_num;
+				if(music_num++>=15){
+					music_num=1;
+				}
+			}
 			Head_Music_Play=0;
-			Body_Music_Play=0;
 		}else{
 			Head_Music_Play=0;
 			set_PD;
@@ -261,9 +281,6 @@ void main (void)
 			folder_and_num[1]=1;
 			folder_and_num[2]=music_num++;
 			Body_Music_Play=1;
-			if(music_num>12){
-				music_num=1;
-			}
 		}
 	}
 }
