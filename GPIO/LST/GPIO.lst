@@ -1,4 +1,4 @@
-C51 COMPILER V9.53.0.0   GPIO                                                              01/09/2018 19:16:49 PAGE 1   
+C51 COMPILER V9.53.0.0   GPIO                                                              01/09/2018 19:44:49 PAGE 1   
 
 
 C51 COMPILER V9.53.0.0, COMPILATION OF MODULE GPIO
@@ -62,7 +62,7 @@ line level    source
   43          /*------------------------------------------------
   44          The main C function.  Program execution starts
   45          here after stack initialization.
-C51 COMPILER V9.53.0.0   GPIO                                                              01/09/2018 19:16:49 PAGE 2   
+C51 COMPILER V9.53.0.0   GPIO                                                              01/09/2018 19:44:49 PAGE 2   
 
   46          ------------------------------------------------*/
   47          typedef unsigned char u8;
@@ -126,7 +126,7 @@ line level    source
  105   1          int j;
  106   1          while(!set_correct && timeout--){
  107   2              send_cmd(cmd, num);
-C51 COMPILER V9.53.0.0   GPIO                                                              01/09/2018 19:16:49 PAGE 3   
+C51 COMPILER V9.53.0.0   GPIO                                                              01/09/2018 19:44:49 PAGE 3   
 
  108   2            str_num = get_result();
  109   2      #if DEBUG
@@ -190,7 +190,7 @@ line level    source
  167   2      #if DEBUG
                   Send_Data_To_UART0(0xAA);
                   for(j=0; j<str_num; j++){
-C51 COMPILER V9.53.0.0   GPIO                                                              01/09/2018 19:16:49 PAGE 4   
+C51 COMPILER V9.53.0.0   GPIO                                                              01/09/2018 19:44:49 PAGE 4   
 
                     Send_Data_To_UART0(state_str[j]);
                   }
@@ -242,7 +242,7 @@ line level    source
  217          {
  218   1        int music_num=1;
  219   1        int play_state=-1;
- 220   1      
+ 220   1        //set_PD;                 //powerdown directly 131.5uA
  221   1        Set_All_GPIO_Quasi_Mode;          // Define in Function_define.h
  222   1        
  223   1        InitialUART0_Timer1(9600);
@@ -254,7 +254,7 @@ line level    source
  229   1        set_P0S_7;
  230   1        Enable_INT_Port1;
  231   1        Enable_BIT7_FallEdge_Trig;
-C51 COMPILER V9.53.0.0   GPIO                                                              01/09/2018 19:16:49 PAGE 5   
+C51 COMPILER V9.53.0.0   GPIO                                                              01/09/2018 19:44:49 PAGE 5   
 
  232   1        trig_state=LOW;
  233   1      
@@ -273,7 +273,7 @@ line level    source
  246   1        
  247   1        //Control_CMD(chip_sleep,sizeof(chip_sleep));
  248   1        while(1){
- 249   2          set_PD;
+ 249   2          //set_PD;         //powerdown here can be 145.8uA
  250   2          Button_state=-1;
  251   2          play_state=Get_Play_State();
  252   2          if(play_state==-1){
@@ -317,8 +317,8 @@ line level    source
 
 
 MODULE INFORMATION:   STATIC OVERLAYABLE
-   CODE SIZE        =   1524    ----
-C51 COMPILER V9.53.0.0   GPIO                                                              01/09/2018 19:16:49 PAGE 6   
+   CODE SIZE        =   1521    ----
+C51 COMPILER V9.53.0.0   GPIO                                                              01/09/2018 19:44:49 PAGE 6   
 
    CONSTANT SIZE    =   ----    ----
    XDATA SIZE       =     60      49

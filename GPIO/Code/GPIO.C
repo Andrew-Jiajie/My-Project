@@ -217,7 +217,7 @@ void main (void)
 {
 	int music_num=1;
 	int play_state=-1;
-
+	//set_PD;									//powerdown directly 131.5uA
 	Set_All_GPIO_Quasi_Mode;					// Define in Function_define.h
 	
 	InitialUART0_Timer1(9600);
@@ -246,7 +246,7 @@ void main (void)
 	
 	//Control_CMD(chip_sleep,sizeof(chip_sleep));
 	while(1){
-		set_PD;
+		//set_PD;					//powerdown here can be 145.8uA
 		Button_state=-1;
 		play_state=Get_Play_State();
 		if(play_state==-1){
