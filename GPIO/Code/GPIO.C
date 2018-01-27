@@ -27,6 +27,9 @@
 #define STOP 0
 #define SOURCE_TF 2
 #define SOURCE_FLASH 3
+#define MINIT 			1000*60
+
+#define HEAD_MUSIC_NUM 2
 
 void Delay_1ms(int time)
 {
@@ -53,12 +56,15 @@ u8 music_next[]={0x03};
 u8 volume_set[]={0x31,0x10};
 u8 source_TF[]={0x35,0x01};
 u8 source_FLASH[]={0x35,0x04};
+u8 music_for_head[]={0x42,0x01,0x01};
+u8 music_for_next[]={0x41,0x00,0x01};
 u8 music_in_root[]={0x41,0x00,0x01};
 u8 folder_and_num[]={0x42,0x01,0x01};
 u8 chip_sleep[]={0x35,0x03};
 u8 chip_wakeup[]={0x35,0x02};
 
 u8 music_state[]={0x10};
+u8 music_number[]={0x17};
 u8 volume_get[]={0x11};
 u8 current_source[]={0x18};
 
@@ -109,20 +115,10 @@ int Control_CMD(u8* cmd, u8 num){
     while(!set_correct && timeout--){
       	send_cmd(cmd, num);
     	str_num = get_result();
-#if DEBUG
-  		Send_Data_To_UART0(0xAA);
-  		for(j=0; j<str_num; j++){
-  			Send_Data_To_UART0(state_str[j]);
-  		}
-  		Send_Data_To_UART0(0xBB);
-#endif
       	for(j=0; j<str_num-3; j++){
         	if(state_str[j]==0x7e && state_str[j+1]==0x02 && state_str[j+2]==0x00 && state_str[j+3]==0xef){
           		set_correct=1;
 				return 0;
-#if DEBUG
-  				Send_Data_To_UART0(0xCC);
-#endif
           	  	break;
         	}
       	}
@@ -150,6 +146,44 @@ int Get_Play_State()
 	return -1;
 }
 
+int Get_total_number()
+{
+  	u8 timeout=2;
+	int str_num;
+	int j;
+	
+  	while(timeout--){
+    	send_cmd(music_number, sizeof(music_number));
+    	str_num = get_result();
+    	for(j=0; j<str_num-4; j++){
+      	  if(state_str[j]==0x7e && state_str[j+2]==0x17){
+			  return state_str[j+4];
+      	  }
+    	}
+		Delay_1ms(20);
+  	}
+	return -1;
+}
+int play_head_music(){
+	Control_CMD(music_for_head, sizeof(music_for_head));
+	music_for_head[2]++;
+	if(LOBYTE(music_for_head[2])>HEAD_MUSIC_NUM){
+		music_for_head[2]=1;
+	}
+
+}
+int play_body_music()
+{
+	int total_music=Get_total_number();
+	if(total_music > HEAD_MUSIC_NUM){
+		Control_CMD(music_for_next, sizeof(music_for_next));
+		music_for_next[2]++;
+		if(LOBYTE(music_for_next[2])>total_music-HEAD_MUSIC_NUM){
+			music_for_next[2]=1;
+		}
+	}
+}
+
 int Specify_Volume(u8 num)
 {
 	
@@ -172,7 +206,6 @@ int Specify_Volume(u8 num)
       	  if(state_str[j]==0x7e && state_str[j+2]==0x11 && state_str[j+3]==num){
         	  set_correct=1;
 			  return 0;
-        	  break;
       	  }
     	}
   	}
@@ -180,35 +213,56 @@ int Specify_Volume(u8 num)
 #endif
 }
 
-int trig_state=HIGH;
+#define setbit(x,y) x|=(1<<y) //将X的第Y位置1
+#define testbit(x,y) x&(1<<y) //测试X的第Y位置
+#define clrbit(x,y) x&=!(1<<y) //将X的第Y位清0
+
+int button_trig_state=HIGH;
+int play_trig_state=HIGH;
+
 int Button_state=-1;
+int Play_state=STOP;
 void PinInterrupt_ISR (void) interrupt 7
 {
-	if (PIF == 0x80)
+	if (testbit(PIF,7))	//SWITCH PIN
 	{
-		PIF =0;
+		clrbit(PIF,7);
 		Delay_1ms(15);
-		if(trig_state==LOW && P17==LOW){
+		if(button_trig_state==LOW && P17==LOW){
 			Enable_BIT7_RasingEdge_Trig;
-			trig_state=HIGH;
+			button_trig_state=HIGH;
 			Button_state=1;
-		}else if(trig_state==HIGH && P17==HIGH){
+		}else if(button_trig_state==HIGH && P17==HIGH){
 			Enable_BIT7_FallEdge_Trig;
-			trig_state=LOW;
+			button_trig_state=LOW;
 			Button_state=0;
 		}
 		clr_PD;
 	}
+	if (testbit(PIF,3))	//BUSY PIN
+	{
+		clrbit(PIF,3);
+		Delay_1ms(2);
+		if(play_trig_state==LOW && P13==LOW){
+			Enable_BIT3_RasingEdge_Trig;
+			play_trig_state=HIGH;
+			Play_state=PLAYING;
+		}else if(play_trig_state==HIGH && P13==HIGH){
+			Enable_BIT3_FallEdge_Trig;
+			play_trig_state=LOW;
+			Play_state=STOP;
+		}
+		Send_Data_To_UART0(0xcc);
+		clr_PD;
+	}
+	if (testbit(PIF,2))	//USB PIN
+	{
+		clrbit(PIF,2);
+		//Delay_1ms(15);
+		clr_PD;
+	}
 	return;
 }
-
-
-
-#define TH0_INIT        0xff //5.0ms@XTAL=12MHz, Period = (10.85/2) ms@XTAL=22.1184MHz
-#define TL0_INIT        0xff
-#define TH1_INIT        0x00 //2.5ms@XTAL=12MHz, Period = (5.425/2) ms@XTAL=22.1184MHz
-#define TL1_INIT        0xff
-#define MINIT 			1000*60
 
 unsigned long wake_time=0;
 
@@ -234,15 +288,11 @@ void power_down()
 	set_TR0;                                    //Timer0 run
 }
 
-void goto_idle()
-{
-	set_IDL;
-}
-
 void audio_power_on()
 {
 	int timeout=25;	//500ms for timeout
 	int chip_ready=-1;
+	P11=1;
 	while(timeout-- && chip_ready==-1){
 		Delay_1ms(20);
 		chip_ready=Specify_Volume(15);
@@ -252,57 +302,6 @@ void audio_power_on()
 	//Send_Data_To_UART0(0xAA);
 }
 
-int get_current_source()
-{
-  	u8 timeout=2;
-	int str_num;
-	int j;
-	
-  	//while(timeout--){
-    	send_cmd(current_source, sizeof(current_source));
-    	str_num = get_result();
-    	for(j=0; j<str_num-3; j++){
-      	  if(state_str[j]==0x7e && state_str[j+2]==0x18){
-        	  return state_str[j+3];
-      	  }
-    	}
-		//Delay_1ms(20);
-		//}
-	return -1;
-}
-void change_source(int source)
-{
-#if 1
-		if(source==SOURCE_TF){
-			Control_CMD(source_TF, sizeof(source_TF));
-		}else if(source==SOURCE_FLASH){
-			Control_CMD(source_FLASH, sizeof(source_FLASH));
-		}
-		Delay_1ms(20);
-	
-#else
-	int timeout=10;	//500ms for timeout
-	int source_now=get_current_source();
-	if(source_now!=source){
-		if(source==SOURCE_TF){
-			Control_CMD(source_TF, sizeof(source_TF));
-		}else if(source==SOURCE_FLASH){
-			Control_CMD(source_FLASH, sizeof(source_FLASH));
-		}
-		Delay_1ms(10);
-		while(timeout--){
-			source_now=get_current_source();
-			Send_Data_To_UART0(source_now);
-			if(source_now==source){
-				break;
-			}
-			Delay_1ms(20);
-		//Send_Data_To_UART0(0xCC);
-		}
-	}
-	//Delay_1ms(30);
-#endif
-}
 
 int Head_Music_Play=0;
 int Body_Music_Play=0;
@@ -310,29 +309,15 @@ void main (void)
 {
 	int music_num=1;
 	int play_state=-1;
+	
 	//set_PD;									//powerdown directly 131.5uA
 	Set_All_GPIO_Quasi_Mode;					// Define in Function_define.h
-	
+	P11_PushPull_Mode;
+
 	InitialUART0_Timer1(9600);
 	set_CLOEN; 
 	audio_power_on();
 	//Delay_1ms(250);			//800ms delay for audio chip get ready
-	
-	Specify_Volume(10);
-	while(1){
-				Control_CMD(source_TF, sizeof(source_TF));
-				Delay_1ms(10);
-				Control_CMD(music_in_root, sizeof(music_in_root));
-				Delay_1ms(2000);
-				Control_CMD(music_in_root, sizeof(music_in_root));
-				Delay_1ms(2000);
-							
-				Control_CMD(source_FLASH, sizeof(source_FLASH));
-				Delay_1ms(10);
-				Control_CMD(music_in_root, sizeof(music_in_root));
-				Delay_1ms(2000);
-	}
-
 
 #if 0
 	
@@ -342,8 +327,8 @@ void main (void)
 	clr_T0M;
     TMOD |= 0x01;                           		//Timer0 is 16-bit mode
 	
-	TH0 = TH0_INIT;
-	TL0 = TL0_INIT;
+    TL0 = LOBYTE(TIMER_DIV12_VALUE_40ms); 		//Find  define in "Function_define.h" "TIMER VALUE"
+    TH0 = HIBYTE(TIMER_DIV12_VALUE_40ms);
     
 	set_ET0;                                    //enable Timer0 interrupt
 	set_EA;                                     //enable interrupts
@@ -362,67 +347,47 @@ void main (void)
 #if 1
 	P17_Input_Mode;
 	set_P0S_7;
-	Enable_INT_Port1;
 	Enable_BIT7_FallEdge_Trig;
-	trig_state=LOW;
+	button_trig_state=LOW;
 
+	P13_Input_Mode;
+	set_P0S_3;
+	Enable_BIT3_FallEdge_Trig;
+	play_trig_state=LOW;
+	
+	
 	P30_Input_Mode;
 	Enable_BIT0_FallEdge_Trig;
-	//Enable_INT_Port3;
 
+	Enable_INT_Port1;
 	set_EPI;							// Enable pin interrupt
 	set_EX0;
 	set_EA;								// global enable bit
 
 #endif
 	Specify_Volume(10);
-	Control_CMD(folder_and_num, sizeof(folder_and_num));
+	//Control_CMD(folder_and_num, sizeof(folder_and_num));
 	while(1){
 		//set_PD;					//powerdown here can be 145.8uA
 		Button_state=-1;
-		//Body_Music_Play=1;
-		play_state=Get_Play_State();
-		if(Head_Music_Play && play_state==PLAYING){
+		Delay_1ms(20);
+		//play_state=Get_Play_State();
+		if(Head_Music_Play && Play_state==PLAYING){
 			Delay_1ms(50);
-		}else if(Body_Music_Play){
-			change_source(SOURCE_TF);
-			//Control_CMD(music_stop, sizeof(music_stop));
-			
-			//Control_CMD(music_next, sizeof(music_next));
-			Control_CMD(folder_and_num, sizeof(folder_and_num));
-			Delay_1ms(10);
+		}if(Body_Music_Play){
+			play_body_music();
 			Body_Music_Play=0;
-#if 0
-			play_state=Get_Play_State();
-			if(play_state==PLAYING){
-				Body_Music_Play=0;
-			}else{
-				//Delay_1ms(15);
-				folder_and_num[2]=music_num;
-				music_num++;
-				if(LOBYTE(music_num)>15){
-					music_num=1;
-				}
-			}
-#endif
 			Head_Music_Play=0;
 		}else{
 			Head_Music_Play=0;
 			set_PD;
 		}
 		if(Button_state==1){
-			change_source(SOURCE_FLASH);
-			folder_and_num[1]=0;
-			folder_and_num[2]=1;
-			Control_CMD(folder_and_num, sizeof(folder_and_num));
+			play_head_music();
 			Head_Music_Play=1;
+			Body_Music_Play=0;
 		}else if(Button_state==0){
-			folder_and_num[1]=0;
-			folder_and_num[2]=1;//music_num++;
 			Body_Music_Play=1;
 		}
 	}
 }
-
-
-
