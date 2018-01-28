@@ -25,9 +25,11 @@
 
 #define PLAYING 1
 #define STOP 0
+#define ON 1
+#define OFF 0
 #define SOURCE_TF 2
 #define SOURCE_FLASH 3
-#define MINIT 			1000*60
+#define MINIT 	60
 
 #define HEAD_MUSIC_NUM 2
 
@@ -219,9 +221,11 @@ int Specify_Volume(u8 num)
 
 int button_trig_state=HIGH;
 int play_trig_state=HIGH;
+int charge_trig_state=HIGH;
 
 int Button_state=-1;
 int Play_state=STOP;
+int Charge_state=OFF;
 void PinInterrupt_ISR (void) interrupt 7
 {
 	if (testbit(PIF,7))	//SWITCH PIN
@@ -252,20 +256,31 @@ void PinInterrupt_ISR (void) interrupt 7
 			play_trig_state=LOW;
 			Play_state=STOP;
 		}
-		Send_Data_To_UART0(0xcc);
+		//Send_Data_To_UART0(0xcc);
 		clr_PD;
 	}
 	if (testbit(PIF,2))	//USB PIN
 	{
 		clrbit(PIF,2);
-		//Delay_1ms(15);
+		Delay_1ms(10);
+		if(charge_trig_state==LOW && P13==LOW){
+			Enable_BIT2_RasingEdge_Trig;
+			charge_trig_state=HIGH;
+			Charge_state=ON;
+		}else if(charge_trig_state==HIGH && P13==HIGH){
+			Enable_BIT2_FallEdge_Trig;
+			charge_trig_state=LOW;
+			Charge_state=OFF;
+		}
+		//Send_Data_To_UART0(0xcc);
 		clr_PD;
 	}
 	return;
 }
 
 unsigned long wake_time=0;
-
+unsigned long timer_count=0;
+int Power_state=ON;
 
 /************************************************************************************************************
 *    TIMER 0 interrupt subroutine
@@ -277,31 +292,39 @@ void Timer0_ISR (void) interrupt 1          //interrupt address is 0x000B
         TL0 = LOBYTE(TIMER_DIV12_VALUE_40ms); 		//Find  define in "Function_define.h" "TIMER VALUE"
         TH0 = HIBYTE(TIMER_DIV12_VALUE_40ms);
 		set_TR0;                              		  //Start Timer0
-		wake_time+=40;
-}
-
-void power_down()
-{
-	clr_TR0;                              		  //Stop Timer0
-	wake_time=0;
-	set_PD;
-	set_TR0;                                    //Timer0 run
+		timer_count+=40;
+		if(timer_count >= 1000){
+			timer_count=0;
+			wake_time++;
+		}
+		//Send_Data_To_UART0(0xcc);
 }
 
 void audio_power_on()
 {
 	int timeout=25;	//500ms for timeout
 	int chip_ready=-1;
-	P11=1;
+	P11=HIGH;
 	while(timeout-- && chip_ready==-1){
 		Delay_1ms(20);
 		chip_ready=Specify_Volume(15);
 		//Send_Data_To_UART0(0xCC);
 	}
 	Delay_1ms(110);
-	//Send_Data_To_UART0(0xAA);
+	Power_state=ON;
+	Send_Data_To_UART0(0xAA);
 }
 
+void audio_power_off()
+{
+	clr_TR0;                              		  //Stop Timer0
+	wake_time=0;
+	P11=LOW;
+	Power_state=OFF;
+	Send_Data_To_UART0(0xBB);
+	set_PD;
+	set_TR0;                                    //Timer0 run
+}
 
 int Head_Music_Play=0;
 int Body_Music_Play=0;
@@ -319,9 +342,7 @@ void main (void)
 	audio_power_on();
 	//Delay_1ms(250);			//800ms delay for audio chip get ready
 
-#if 0
-	
-	Set_All_GPIO_Quasi_Mode;
+#if 1
 	TIMER0_MODE0_ENABLE;                        //Timer 0 and Timer 1 mode configuration
 
 	clr_T0M;
@@ -334,11 +355,6 @@ void main (void)
 	set_EA;                                     //enable interrupts
 	
 	set_TR0;                                    //Timer0 run
-
-  	while(1){
-		Send_Data_To_UART0(0xCC);
-  		power_down();
-  	}	
 
 #endif
 
@@ -365,29 +381,42 @@ void main (void)
 	set_EA;								// global enable bit
 
 #endif
-	Specify_Volume(10);
+	Specify_Volume(15);
 	//Control_CMD(folder_and_num, sizeof(folder_and_num));
 	while(1){
 		//set_PD;					//powerdown here can be 145.8uA
-		Button_state=-1;
-		Delay_1ms(20);
 		//play_state=Get_Play_State();
-		if(Head_Music_Play && Play_state==PLAYING){
-			Delay_1ms(50);
-		}if(Body_Music_Play){
-			play_body_music();
-			Body_Music_Play=0;
-			Head_Music_Play=0;
-		}else{
-			Head_Music_Play=0;
-			set_PD;
-		}
 		if(Button_state==1){
+			Button_state=-1;
+			if(Power_state==OFF){
+				audio_power_on();
+			}
 			play_head_music();
-			Head_Music_Play=1;
+			//Head_Music_Play=1;
 			Body_Music_Play=0;
-		}else if(Button_state==0){
+		}
+		if(Button_state==0){
+			Button_state=-1;
 			Body_Music_Play=1;
+		}
+		if(Play_state==PLAYING){
+			wake_time = 0;
+			//Send_Data_To_UART0(0xBB);
+			set_IDL;
+		}
+		if(wake_time > 1*MINIT ){
+			audio_power_off();
+		}
+#if 0
+		if(Play_state==STOP && Head_Music_Play==1){
+			Head_Music_Play=0;
+		}
+#endif
+		if(Play_state==STOP && Body_Music_Play==1){
+			if(Power_state==ON){
+				play_body_music();
+			}
+			Body_Music_Play=0;
 		}
 	}
 }
