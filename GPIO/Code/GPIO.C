@@ -166,14 +166,15 @@ int Get_total_number()
   	}
 	return -1;
 }
+
 int play_head_music(){
 	Control_CMD(music_for_head, sizeof(music_for_head));
 	music_for_head[2]++;
 	if(LOBYTE(music_for_head[2])>HEAD_MUSIC_NUM){
 		music_for_head[2]=1;
 	}
-
 }
+
 int play_body_music()
 {
 	int total_music=Get_total_number();
@@ -312,7 +313,6 @@ void audio_power_on()
 	}
 	Delay_1ms(110);
 	Power_state=ON;
-	Send_Data_To_UART0(0xAA);
 }
 
 void audio_power_off()
@@ -355,10 +355,7 @@ void main (void)
 	set_EA;                                     //enable interrupts
 	
 	set_TR0;                                    //Timer0 run
-
 #endif
-
-
 
 #if 1
 	P17_Input_Mode;
@@ -399,12 +396,15 @@ void main (void)
 			Button_state=-1;
 			Body_Music_Play=1;
 		}
-		if(Play_state==PLAYING){
+		if(Play_state==PLAYING || Charge_state==ON){
 			wake_time = 0;
 			//Send_Data_To_UART0(0xBB);
 			set_IDL;
 		}
-		if(wake_time > 1*MINIT ){
+		if(Charge_state==ON && Power_state==OFF){
+			audio_power_on();
+		}
+		if(Play_state==STOP && Charge_state==OFF && wake_time > 1*MINIT){
 			audio_power_off();
 		}
 #if 0
