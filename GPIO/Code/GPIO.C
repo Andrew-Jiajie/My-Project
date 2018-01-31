@@ -58,7 +58,7 @@ u8 music_next[]={0x03};
 u8 volume_set[]={0x31,0x10};
 u8 source_TF[]={0x35,0x01};
 u8 source_FLASH[]={0x35,0x04};
-u8 music_for_head[]={0x42,0x01,0x01};
+u8 music_for_head[]={0x42,0x01,0x02};
 u8 music_for_next[]={0x41,0x00,0x01};
 u8 music_in_root[]={0x41,0x00,0x01};
 u8 folder_and_num[]={0x42,0x01,0x01};
@@ -227,6 +227,7 @@ int charge_trig_state=HIGH;
 int Button_state=-1;
 int Play_state=STOP;
 int Charge_state=OFF;
+int Reset_system=-1;
 void PinInterrupt_ISR (void) interrupt 7
 {
 	if (testbit(PIF,7))	//SWITCH PIN
@@ -272,6 +273,7 @@ void PinInterrupt_ISR (void) interrupt 7
 			Enable_BIT2_FallEdge_Trig;
 			charge_trig_state=LOW;
 			Charge_state=OFF;
+			Reset_system=1;
 		}
 		//Send_Data_To_UART0(0xcc);
 		clr_PD;
@@ -308,7 +310,7 @@ void audio_power_on()
 	P11=HIGH;
 	while(timeout-- && chip_ready==-1){
 		Delay_1ms(20);
-		chip_ready=Specify_Volume(15);
+		chip_ready=Specify_Volume(28);
 		//Send_Data_To_UART0(0xCC);
 	}
 	Delay_1ms(110);
@@ -326,6 +328,11 @@ void audio_power_off()
 	set_TR0;                                    //Timer0 run
 }
 
+void init_LED(){
+	
+}
+
+
 int Head_Music_Play=0;
 int Body_Music_Play=0;
 void main (void) 
@@ -336,7 +343,6 @@ void main (void)
 	//set_PD;									//powerdown directly 131.5uA
 	Set_All_GPIO_Quasi_Mode;					// Define in Function_define.h
 	P11_PushPull_Mode;
-
 	InitialUART0_Timer1(9600);
 	set_CLOEN; 
 	audio_power_on();
@@ -378,7 +384,7 @@ void main (void)
 	set_EA;								// global enable bit
 
 #endif
-	Specify_Volume(15);
+	Specify_Volume(30);
 	//Control_CMD(folder_and_num, sizeof(folder_and_num));
 	while(1){
 		//set_PD;					//powerdown here can be 145.8uA
@@ -401,10 +407,14 @@ void main (void)
 			//Send_Data_To_UART0(0xBB);
 			set_IDL;
 		}
+		if(Reset_system==1){
+			Reset_system=-1;
+			set_SWRST;
+		}
 		if(Charge_state==ON && Power_state==OFF){
 			audio_power_on();
 		}
-		if(Play_state==STOP && Charge_state==OFF && wake_time > 1*MINIT){
+		if(Play_state==STOP && Charge_state==OFF && wake_time > MINIT/12){
 			audio_power_off();
 		}
 #if 0
