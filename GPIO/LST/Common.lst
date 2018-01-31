@@ -1,4 +1,4 @@
-C51 COMPILER V9.53.0.0   COMMON                                                            01/31/2018 11:45:08 PAGE 1   
+C51 COMPILER V9.53.0.0   COMMON                                                            01/31/2018 17:28:40 PAGE 1   
 
 
 C51 COMPILER V9.53.0.0, COMPILATION OF MODULE COMMON
@@ -62,7 +62,7 @@ line level    source
   45   1          P06_Quasi_Mode;   //Setting UART pin as Quasi mode for transmit
   46   1          P07_Quasi_Mode;   //Setting UART pin as Quasi mode for transmit 
   47   1        
-C51 COMPILER V9.53.0.0   COMMON                                                            01/31/2018 11:45:08 PAGE 2   
+C51 COMPILER V9.53.0.0   COMMON                                                            01/31/2018 17:28:40 PAGE 2   
 
   48   1          SCON = 0x50;     //UART0 Mode1,REN=1,TI=1
   49   1          set_SMOD;        //UART0 Double Rate Enable
@@ -126,7 +126,7 @@ line level    source
  107   1          UINT8 c;
  108   1          
  109   1          while (!RI_1);
-C51 COMPILER V9.53.0.0   COMMON                                                            01/31/2018 11:45:08 PAGE 3   
+C51 COMPILER V9.53.0.0   COMMON                                                            01/31/2018 17:28:40 PAGE 3   
 
  110   1          c = SBUF_1;
  111   1          RI_1 = 0;
