@@ -248,35 +248,34 @@ void PinInterrupt_ISR (void) interrupt 7
 		}
 		clr_PD;
 	}
-	if (testbit(PIF,3))	//BUSY PIN
+	if (testbit(PIF,2))	//BUSY PIN
 	{
-		clrbit(PIF,3);
-		Delay_1ms(2);
-		if(play_trig_state==LOW && P13==LOW){
-			Enable_BIT3_RasingEdge_Trig;
+		clrbit(PIF,2);
+		Delay_1ms(2);	
+		if(play_trig_state==LOW && P12==LOW){
+			Enable_BIT2_RasingEdge_Trig;
 			play_trig_state=HIGH;
 			Play_state=PLAYING;
-		}else if(play_trig_state==HIGH && P13==HIGH){
-			Enable_BIT3_FallEdge_Trig;
+		}else if(play_trig_state==HIGH && P12==HIGH){
+			Enable_BIT2_FallEdge_Trig;
 			play_trig_state=LOW;
 			Play_state=STOP;
 		}
-		//Send_Data_To_UART0(0xcc);
 		clr_PD;
 	}
-	if (testbit(PIF,2))	//USB PIN
+	if (testbit(PIF,3))	//USB PIN
 	{
-		clrbit(PIF,2);
+		clrbit(PIF,3);
 		Delay_1ms(10);
 		if(charge_trig_state==LOW && P13==LOW){
-			Enable_BIT2_RasingEdge_Trig;
+			Enable_BIT3_RasingEdge_Trig;
 			charge_trig_state=HIGH;
 			Charge_state=ON;
 		}else if(charge_trig_state==HIGH && P13==HIGH){
-			Enable_BIT2_FallEdge_Trig;
+			Enable_BIT3_FallEdge_Trig;
 			charge_trig_state=LOW;
 			Charge_state=OFF;
-			Reset_system=1;
+			//Reset_system=1;
 		}
 		//Send_Data_To_UART0(0xcc);
 		clr_PD;
@@ -310,7 +309,7 @@ void audio_power_on()
 {
 	int timeout=25;	//500ms for timeout
 	int chip_ready=-1;
-	P11=HIGH;
+	P01=HIGH;
 	while(timeout-- && chip_ready==-1){
 		Delay_1ms(20);
 		chip_ready=Specify_Volume(28);
@@ -324,7 +323,7 @@ void audio_power_off()
 {
 	clr_TR0;                              		  //Stop Timer0
 	wake_time=0;
-	P11=LOW;
+	P01=LOW;
 	Power_state=OFF;
 	Send_Data_To_UART0(0xBB);
 	set_PD;
@@ -540,15 +539,15 @@ void LED_G(int num){
 	set_LOAD;
 }
 void LED_B(int num){
-	PWM0H = HIBYTE(num);				
-	PWM0L = LOBYTE(num);
-	PWM0_OUTPUT_INVERSE;
+	PWM2H = HIBYTE(num);				
+	PWM2L = LOBYTE(num);
+	PWM2_OUTPUT_INVERSE;
 	set_LOAD;
 }
 void init_LED(){
-	PWM0_P12_OUTPUT_ENABLE;
 	PWM1_P14_OUTPUT_ENABLE;
 	PWM3_P00_OUTPUT_ENABLE;
+	PWM2_P05_OUTPUT_ENABLE;
 
 	PWM_IMDEPENDENT_MODE;
 	PWM_CLOCK_DIV_8;
@@ -573,7 +572,7 @@ void init_LED(){
 }
 //-----------------------------------------------------------------------------------
 
-int get_adc()
+int get_adc(void)
 {
 	clr_ADCF;
 	set_ADCS;									// ADC start trig signal
@@ -590,7 +589,20 @@ void main (void)
 	
 	//set_PD;									//powerdown directly 131.5uA
 	Set_All_GPIO_Quasi_Mode;					// Define in Function_define.h
-	P11_PushPull_Mode;
+	P01_PushPull_Mode;
+	P01=0;
+	//P0=0;
+	//P1=0;
+	Delay_1ms(500);
+	P01=1;
+	while(0){
+		P01=0;
+		P0=0;
+		P1=0;
+		Delay_1ms(2000);
+		P01=1;
+		Delay_1ms(2000);
+	}
 	
 	
 	InitialUART0_Timer1(9600);
@@ -614,19 +626,23 @@ void main (void)
 #endif
 
 #if 1
+	//Switch detect
 	P17_Input_Mode;
 	set_P0S_7;
 	Enable_BIT7_FallEdge_Trig;
 	button_trig_state=LOW;
-
+	
+	//USB detect
 	P13_Input_Mode;
 	set_P0S_3;
 	Enable_BIT3_FallEdge_Trig;
+	charge_trig_state=LOW;
+	
+	//audio BUSY pin
+	P12_Input_Mode;
+	set_P0S_2;
+	Enable_BIT2_FallEdge_Trig;
 	play_trig_state=LOW;
-	
-	
-	P30_Input_Mode;
-	Enable_BIT0_FallEdge_Trig;
 
 	Enable_INT_Port1;
 	set_EPI;							// Enable pin interrupt
@@ -636,7 +652,7 @@ void main (void)
 #endif
 	init_LED();
 	Specify_Volume(20);
-	//Control_CMD(folder_and_num, sizeof(folder_and_num));
+	//Control_CMD(music_next, sizeof(music_next));
 	while(1){
 		//set_PD;					//powerdown here can be 145.8uA
 		if(Button_state==1){
@@ -653,10 +669,10 @@ void main (void)
 			Body_Music_Play=1;
 		}
 		if(Play_state==PLAYING || Charge_state==ON){
+#if 1
 			int i=0;
 			int red=0, green=0, blue=0;
 			set_PWMRUN;
-			wake_time = 0;
 			//Send_Data_To_UART0(0xBB);
 			ADC_Finish();
 			FFT();
@@ -675,7 +691,8 @@ void main (void)
 			LED_R(red);
 			LED_G(green);
 			LED_B(blue);
-		    
+#endif
+		    wake_time = 0;
 			//set_IDL;
 		}
 		if(Play_state==STOP){
