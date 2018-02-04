@@ -35,6 +35,8 @@
 #define MINIT 	60
 
 #define HEAD_MUSIC_NUM 2
+#define SYS_VOLUME 35
+#define AUDIO_CTRL P01
 
 void Delay_1ms(int time)
 {
@@ -54,31 +56,31 @@ void Delay_100us(int time)
 The main C function.  Program execution starts
 here after stack initialization.
 ------------------------------------------------*/
-typedef unsigned char u8;
-u8 music_play[]={0x01};
-u8 music_stop[]={0x0E};
-u8 music_next[]={0x03};
-u8 volume_set[]={0x31,0x10};
-u8 source_TF[]={0x35,0x01};
-u8 source_FLASH[]={0x35,0x04};
-u8 music_for_head[]={0x42,0x01,0x02};
-u8 music_for_next[]={0x41,0x00,0x01};
-u8 music_in_root[]={0x41,0x00,0x01};
-u8 folder_and_num[]={0x42,0x01,0x01};
-u8 chip_sleep[]={0x35,0x03};
-u8 chip_wakeup[]={0x35,0x02};
 
-u8 music_state[]={0x10};
-u8 music_number[]={0x17};
-u8 volume_get[]={0x11};
-u8 current_source[]={0x18};
+uchar music_play[]={0x01};
+uchar music_stop[]={0x0E};
+uchar music_next[]={0x03};
+uchar volume_set[]={0x31,0x10};
+uchar source_TF[]={0x35,0x01};
+uchar source_FLASH[]={0x35,0x04};
+uchar music_for_head[]={0x42,0x01,0x02};
+uchar music_for_next[]={0x41,0x00,0x01};
+uchar music_in_root[]={0x41,0x00,0x01};
+uchar folder_and_num[]={0x42,0x01,0x01};
+uchar chip_sleep[]={0x35,0x03};
+uchar chip_wakeup[]={0x35,0x02};
 
-u8 return_ok[]={0x7E,0x02,0x00,0xEF};
-u8 return_finished[]={0x7E,0x04,   0x3E,    0x00,0x00,0xEF};  //current music finished
-u8 return_state[]={0x7E,0x03,0x10,0x00,   //0(STOP) 1(PLAY) 2(PAUS) 3(FF) 4(FR)
+uchar music_state[]={0x10};
+uchar music_number[]={0x17};
+uchar volume_get[]={0x11};
+uchar current_source[]={0x18};
+
+uchar return_ok[]={0x7E,0x02,0x00,0xEF};
+uchar return_finished[]={0x7E,0x04,   0x3E,    0x00,0x00,0xEF};  //current music finished
+uchar return_state[]={0x7E,0x03,0x10,0x00,   //0(STOP) 1(PLAY) 2(PAUS) 3(FF) 4(FR)
                   0xEF,0x7E,0x02,0x00,0xEF}; //when music_state send, will return the value
-u8 state_str[12];
-u8 get_result()
+uchar state_str[12];
+uchar get_result()
 {
     int result_num=0;
 	int timeout=250;
@@ -94,10 +96,10 @@ u8 get_result()
     return result_num;
 }
 
-void send_cmd(u8* cmd, u8 num){
-  u8 count=0;
-  u8 command[15];
-  u8 tmp_cnt=0;
+void send_cmd(uchar* cmd, uchar num){
+  uchar count=0;
+  uchar command[15];
+  uchar tmp_cnt=0;
   int out_cnt=0;
 	
   command[count++]=0x7E;
@@ -112,9 +114,9 @@ void send_cmd(u8* cmd, u8 num){
   }
 }
 
-int Control_CMD(u8* cmd, u8 num){
+int Control_CMD(uchar* cmd, uchar num){
 	int set_correct=0;
-    u8 timeout=2;
+    uchar timeout=2;
   	int str_num;
   	int j;
     while(!set_correct && timeout--){
@@ -134,7 +136,7 @@ int Control_CMD(u8* cmd, u8 num){
 
 int Get_Play_State()
 {
-  	u8 timeout=2;
+  	uchar timeout=2;
 	int str_num;
 	int j;
 	
@@ -153,7 +155,7 @@ int Get_Play_State()
 
 int Get_total_number()
 {
-  	u8 timeout=2;
+  	uchar timeout=2;
 	int str_num;
 	int j;
 	
@@ -170,7 +172,7 @@ int Get_total_number()
 	return -1;
 }
 
-int play_head_music(){
+int Play_head_music(){
 	Control_CMD(music_for_head, sizeof(music_for_head));
 	music_for_head[2]++;
 	if(LOBYTE(music_for_head[2])>HEAD_MUSIC_NUM){
@@ -178,7 +180,7 @@ int play_head_music(){
 	}
 }
 
-int play_body_music()
+int Play_body_music()
 {
 	int total_music=Get_total_number();
 	if(total_music > HEAD_MUSIC_NUM){
@@ -189,8 +191,12 @@ int play_body_music()
 		}
 	}
 }
+void Stop_music()
+{
+	Control_CMD(music_stop, sizeof(music_stop));
+}
 
-int Specify_Volume(u8 num)
+int Specify_Volume(uchar num)
 {
 	
 #if 0
@@ -198,7 +204,7 @@ int Specify_Volume(u8 num)
 	Control_CMD(volume_set, sizeof(volume_set));
 #else
   	int set_correct=0;
-  	u8 timeout=3;
+  	uchar timeout=3;
 	int str_num;
 	int j;
 	volume_set[1] = num;
@@ -236,46 +242,55 @@ void PinInterrupt_ISR (void) interrupt 7
 	if (testbit(PIF,7))	//SWITCH PIN
 	{
 		clrbit(PIF,7);
-		Delay_1ms(15);
+		Delay_1ms(1);
 		if(button_trig_state==LOW && P17==LOW){
 			Enable_BIT7_RasingEdge_Trig;
 			button_trig_state=HIGH;
 			Button_state=1;
+			P11=1;
 		}else if(button_trig_state==HIGH && P17==HIGH){
 			Enable_BIT7_FallEdge_Trig;
 			button_trig_state=LOW;
 			Button_state=0;
+			P11=0;
 		}
 		clr_PD;
 	}
 	if (testbit(PIF,2))	//BUSY PIN
 	{
 		clrbit(PIF,2);
-		Delay_1ms(2);	
+		Delay_1ms(1);	
 		if(play_trig_state==LOW && P12==LOW){
 			Enable_BIT2_RasingEdge_Trig;
 			play_trig_state=HIGH;
 			Play_state=PLAYING;
+			P11=1;
 		}else if(play_trig_state==HIGH && P12==HIGH){
 			Enable_BIT2_FallEdge_Trig;
 			play_trig_state=LOW;
 			Play_state=STOP;
+			P11=0;
 		}
 		clr_PD;
 	}
 	if (testbit(PIF,3))	//USB PIN
 	{
 		clrbit(PIF,3);
-		Delay_1ms(10);
+		Delay_1ms(1);
 		if(charge_trig_state==LOW && P13==LOW){
 			Enable_BIT3_RasingEdge_Trig;
 			charge_trig_state=HIGH;
-			Charge_state=ON;
+			Charge_state=OFF;
+			Reset_system=1;
+			P11=0;
+			Send_Data_To_UART0(0xcc);
 		}else if(charge_trig_state==HIGH && P13==HIGH){
 			Enable_BIT3_FallEdge_Trig;
 			charge_trig_state=LOW;
-			Charge_state=OFF;
-			//Reset_system=1;
+			Charge_state=ON;
+			Reset_system=-1;
+			P11=1;
+			Send_Data_To_UART0(0xdd);
 		}
 		//Send_Data_To_UART0(0xcc);
 		clr_PD;
@@ -309,25 +324,43 @@ void audio_power_on()
 {
 	int timeout=25;	//500ms for timeout
 	int chip_ready=-1;
-	P01=HIGH;
+	
+	AUDIO_CTRL=LOW;
+
 	while(timeout-- && chip_ready==-1){
 		Delay_1ms(20);
 		chip_ready=Specify_Volume(28);
-		//Send_Data_To_UART0(0xCC);
 	}
-	Delay_1ms(110);
+	Delay_1ms(150);
 	Power_state=ON;
 }
 
 void audio_power_off()
 {
+	int org_p06=P06;
+	int org_p07=P07;
 	clr_TR0;                              		  //Stop Timer0
 	wake_time=0;
-	P01=LOW;
+	AUDIO_CTRL=HIGH;
+	P03=0;
+	P04=0;
+	org_p06=P06;
+	org_p07=P07;
+	P06=0;
+	P07=0;
+	P12_Quasi_Mode;
+	P12=0;
 	Power_state=OFF;
-	Send_Data_To_UART0(0xBB);
-	set_PD;
+	
+	//Delay_1ms(1000);
+	set_PD;					//go to sleep mode
+	
+	P12_Input_Mode;
+	P06=org_p06;
+	P07=org_p07;
 	set_TR0;                                    //Timer0 run
+	Delay_1ms(2);
+	
 }
 //-----------------------------------------------------------------------------------------------
 char SIN_TAB[64] = { 0x00, 0x0c, 0x18, 0x24, 0x30, 0x3b, 0x46, 0x50, 
@@ -558,17 +591,6 @@ void init_LED(){
 	LED_G(0);
 	LED_B(0);
 	set_PWMRUN;
-	while(0){
-		LED_R(1024);
-		Delay_1ms(500);
-		LED_R(0);
-		LED_G(1024);
-		Delay_1ms(500);
-		LED_G(0);
-		LED_B(1024);
-		Delay_1ms(500);
-		LED_B(0);
-	}
 }
 //-----------------------------------------------------------------------------------
 
@@ -589,39 +611,27 @@ void main (void)
 	
 	//set_PD;									//powerdown directly 131.5uA
 	Set_All_GPIO_Quasi_Mode;					// Define in Function_define.h
+	P11=0;
 	P01_PushPull_Mode;
-	P01=0;
-	//P0=0;
-	//P1=0;
+#if 1	
+	AUDIO_CTRL=1;
 	Delay_1ms(500);
-	P01=1;
-	while(0){
-		P01=0;
-		P0=0;
-		P1=0;
-		Delay_1ms(2000);
-		P01=1;
-		Delay_1ms(2000);
-	}
-	
-	
 	InitialUART0_Timer1(9600);
+	Send_Data_To_UART0(0xaa);
+	Send_Data_To_UART0(0xaa);
+	Send_Data_To_UART0(0xaa);
 	set_CLOEN; 
 	audio_power_on();
-	//Delay_1ms(250);			//800ms delay for audio chip get ready
+#endif
 
 #if 1
 	TIMER0_MODE0_ENABLE;                        //Timer 0 and Timer 1 mode configuration
-
 	clr_T0M;
     TMOD |= 0x01;                           		//Timer0 is 16-bit mode
-	
     TL0 = LOBYTE(TIMER_DIV12_VALUE_40ms); 		//Find  define in "Function_define.h" "TIMER VALUE"
     TH0 = HIBYTE(TIMER_DIV12_VALUE_40ms);
-    
 	set_ET0;                                    //enable Timer0 interrupt
 	set_EA;                                     //enable interrupts
-	
 	set_TR0;                                    //Timer0 run
 #endif
 
@@ -635,8 +645,8 @@ void main (void)
 	//USB detect
 	P13_Input_Mode;
 	set_P0S_3;
-	Enable_BIT3_FallEdge_Trig;
-	charge_trig_state=LOW;
+	Enable_BIT3_RasingEdge_Trig;
+	charge_trig_state=HIGH;
 	
 	//audio BUSY pin
 	P12_Input_Mode;
@@ -651,29 +661,40 @@ void main (void)
 
 #endif
 	init_LED();
-	Specify_Volume(20);
-	//Control_CMD(music_next, sizeof(music_next));
+	//Delay_1ms(1000);
+	Specify_Volume(SYS_VOLUME);
+	//Specify_Volume(5);
+	while(0){
+		audio_power_on();
+		Delay_1ms(1000);
+		Specify_Volume(SYS_VOLUME);
+		//Play_body_music();
+		Control_CMD(music_next, sizeof(music_next));
+		Delay_1ms(5000);
+		audio_power_off();
+		Delay_1ms(1000);
+	}
 	while(1){
 		//set_PD;					//powerdown here can be 145.8uA
-		if(Button_state==1){
+
+		if(Button_state==1 && Charge_state==OFF){
 			Button_state=-1;
 			if(Power_state==OFF){
 				audio_power_on();
+				Specify_Volume(SYS_VOLUME);
 			}
-			play_head_music();
+			Play_head_music();
 			//Head_Music_Play=1;
 			Body_Music_Play=0;
 		}
-		if(Button_state==0){
+		if(Button_state==0 && Charge_state==OFF){
 			Button_state=-1;
 			Body_Music_Play=1;
 		}
-		if(Play_state==PLAYING || Charge_state==ON){
-#if 1
+		if(Play_state==PLAYING){
 			int i=0;
 			int red=0, green=0, blue=0;
 			set_PWMRUN;
-			//Send_Data_To_UART0(0xBB);
 			ADC_Finish();
 			FFT();
 #if 0
@@ -685,31 +706,44 @@ void main (void)
 			red=LED_TAB[1]+LED_TAB[2]+LED_TAB[3]+LED_TAB[4]+LED_TAB[5];
 			green=LED_TAB[6]+LED_TAB[7]+LED_TAB[8]+LED_TAB[9]+LED_TAB[10];
 			blue=LED_TAB[11]+LED_TAB[12]+LED_TAB[13]+LED_TAB[14]+LED_TAB[15];
-			red=red*4;
-			green=green*4;
-			green=green*4;
+			red=red*3;
+			green=green*3;
+			green=green*3;
 			LED_R(red);
 			LED_G(green);
 			LED_B(blue);
-#endif
 		    wake_time = 0;
 			//set_IDL;
+		}
+		if(Play_state==PLAYING && Charge_state==ON){
+			Stop_music();
 		}
 		if(Play_state==STOP){
 			LED_R(0);
 			LED_G(0);
 			LED_B(0);
-			//clr_PWMRUN;
 			set_IDL;
 		}
-		if(Reset_system==1){
-			Reset_system=-1;
-			set_SWRST;
+		if(Reset_system==1 && Play_state==STOP){
+			Delay_1ms(500);				//Add delay 600ms, in case USB connection problem.
+			if(Reset_system==1){
+				Reset_system=-1;
+				SW_Reset();
+			}
 		}
+
 		if(Charge_state==ON && Power_state==OFF){
 			audio_power_on();
+			Specify_Volume(SYS_VOLUME);
 		}
-		if(Play_state==STOP && Charge_state==OFF && wake_time > MINIT/12){
+		if(Play_state==STOP && Charge_state==OFF && wake_time > MINIT)
+		{
+			Send_Data_To_UART0(0xaa);
+			audio_power_off();
+		}
+		if(Charge_state==ON && wake_time > MINIT*20)	//power off audio, to make sure device can charge to full.
+		{
+			Send_Data_To_UART0(0xbb);
 			audio_power_off();
 		}
 #if 0
@@ -719,7 +753,7 @@ void main (void)
 #endif
 		if(Play_state==STOP && Body_Music_Play==1){
 			if(Power_state==ON){
-				play_body_music();
+				Play_body_music();
 			}
 			Body_Music_Play=0;
 		}
