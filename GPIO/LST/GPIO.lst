@@ -1,4 +1,4 @@
-C51 COMPILER V9.53.0.0   GPIO                                                              02/04/2018 21:56:39 PAGE 1   
+C51 COMPILER V9.53.0.0   GPIO                                                              02/04/2018 22:43:56 PAGE 1   
 
 
 C51 COMPILER V9.53.0.0, COMPILATION OF MODULE GPIO
@@ -37,789 +37,406 @@ line level    source
   18          #include "Function_define.h"
   19          #include "Common.h"
   20          #include "Delay.h"
-  21          
-  22          #define uchar unsigned char
-  23          #define uint unsigned int
-  24          
-  25          #define DEBUG 0
-  26          #define HIGH 1
-  27          #define LOW 0
-  28          
-  29          #define PLAYING 1
-  30          #define STOP 0
-  31          #define ON 1
-  32          #define OFF 0
-  33          #define SOURCE_TF 2
-  34          #define SOURCE_FLASH 3
-  35          #define MINIT   60
+  21          #include "Music_control.h"
+  22          #include "FFT.h"
+  23          
+  24          #define DEBUG 0
+  25          #define HIGH 1
+  26          #define LOW 0
+  27          
+  28          #define PLAYING 1
+  29          #define STOP 0
+  30          #define ON 1
+  31          #define OFF 0
+  32          #define SOURCE_TF 2
+  33          #define SOURCE_FLASH 3
+  34          #define MINIT   60
+  35          
   36          
-  37          #define HEAD_MUSIC_NUM 2
-  38          #define SYS_VOLUME 35
-  39          #define AUDIO_CTRL P01
+  37          #define SYS_VOLUME 35
+  38          #define AUDIO_CTRL P01
+  39          
   40          
-  41          void Delay_1ms(int time)
-  42          {
-  43   1        int i,j;
-  44   1        for(j=0; j<time; j++)
-  45   1          for (i = 0; i < 729; i++);
-C51 COMPILER V9.53.0.0   GPIO                                                              02/04/2018 21:56:39 PAGE 2   
+  41          /*------------------------------------------------
+  42          The main C function.  Program execution starts
+  43          here after stack initialization.
+  44          ------------------------------------------------*/
+  45          
+C51 COMPILER V9.53.0.0   GPIO                                                              02/04/2018 22:43:56 PAGE 2   
 
-  46   1      }
-  47          
-  48          void Delay_100us(int time)
-  49          {
-  50   1        int i,j;
-  51   1        for(j=0; j<time; j++)
-  52   1          for (i = 0; i < 72; i++);
-  53   1      }
-  54          
-  55          /*------------------------------------------------
-  56          The main C function.  Program execution starts
-  57          here after stack initialization.
-  58          ------------------------------------------------*/
-  59          
-  60          uchar music_play[]={0x01};
-  61          uchar music_stop[]={0x0E};
-  62          uchar music_next[]={0x03};
-  63          uchar volume_set[]={0x31,0x10};
-  64          uchar source_TF[]={0x35,0x01};
-  65          uchar source_FLASH[]={0x35,0x04};
-  66          uchar music_for_head[]={0x42,0x01,0x02};
-  67          uchar music_for_next[]={0x41,0x00,0x01};
-  68          uchar music_in_root[]={0x41,0x00,0x01};
-  69          uchar folder_and_num[]={0x42,0x01,0x01};
-  70          uchar chip_sleep[]={0x35,0x03};
-  71          uchar chip_wakeup[]={0x35,0x02};
-  72          
-  73          uchar music_state[]={0x10};
-  74          uchar music_number[]={0x17};
-  75          uchar volume_get[]={0x11};
-  76          uchar current_source[]={0x18};
-  77          
-  78          uchar return_ok[]={0x7E,0x02,0x00,0xEF};
-  79          uchar return_finished[]={0x7E,0x04,   0x3E,    0x00,0x00,0xEF};  //current music finished
-  80          uchar return_state[]={0x7E,0x03,0x10,0x00,   //0(STOP) 1(PLAY) 2(PAUS) 3(FF) 4(FR)
-  81                            0xEF,0x7E,0x02,0x00,0xEF}; //when music_state send, will return the value
-  82          uchar state_str[12];
-  83          uchar get_result()
-  84          {
-  85   1          int result_num=0;
-  86   1        int timeout=250;
-  87   1      
-  88   1        while(!RI && timeout--){
-  89   2          Delay_100us(1);   //delay 25ms
-  90   2        }
-  91   1          while (RI) {
-  92   2            state_str[result_num++]=Receive_Data_From_UART0();
-  93   2          timeout=8000;
-  94   2          while(!RI && timeout--);
-  95   2          }
-  96   1          return result_num;
-  97   1      }
-  98          
-  99          void send_cmd(uchar* cmd, uchar num){
- 100   1        uchar count=0;
- 101   1        uchar command[15];
- 102   1        uchar tmp_cnt=0;
- 103   1        int out_cnt=0;
- 104   1        
- 105   1        command[count++]=0x7E;
- 106   1        command[count++]=0x01+num;
- 107   1        while(tmp_cnt<num){
-C51 COMPILER V9.53.0.0   GPIO                                                              02/04/2018 21:56:39 PAGE 3   
+  46          #define setbit(x,y) x|=(1<<y) //½«XµÄµÚYÎ»ÖÃ1
+  47          #define testbit(x,y) x&(1<<y) //²âÊÔXµÄµÚYÎ»ÖÃ
+  48          #define clrbit(x,y) x&=!(1<<y) //½«XµÄµÚYÎ»Çå0
+  49          
+  50          int button_trig_state=HIGH;
+  51          int play_trig_state=HIGH;
+  52          int charge_trig_state=HIGH;
+  53          
+  54          int Button_state=-1;
+  55          int Play_state=STOP;
+  56          int Charge_state=OFF;
+  57          int Reset_system=-1;
+  58          void PinInterrupt_ISR (void) interrupt 7
+  59          {
+  60   1        if (testbit(PIF,7)) //SWITCH PIN
+  61   1        {
+  62   2          clrbit(PIF,7);
+  63   2          Delay_1ms(1);
+  64   2          if(button_trig_state==LOW && P17==LOW){
+  65   3            Enable_BIT7_RasingEdge_Trig;
+  66   3            button_trig_state=HIGH;
+  67   3            Button_state=1;
+  68   3            P11=1;
+  69   3          }else if(button_trig_state==HIGH && P17==HIGH){
+  70   3            Enable_BIT7_FallEdge_Trig;
+  71   3            button_trig_state=LOW;
+  72   3            Button_state=0;
+  73   3            P11=0;
+  74   3          }
+  75   2          clr_PD;
+  76   2        }
+  77   1        if (testbit(PIF,2)) //BUSY PIN
+  78   1        {
+  79   2          clrbit(PIF,2);
+  80   2          Delay_1ms(1); 
+  81   2          if(play_trig_state==LOW && P12==LOW){
+  82   3            Enable_BIT2_RasingEdge_Trig;
+  83   3            play_trig_state=HIGH;
+  84   3            Play_state=PLAYING;
+  85   3            P11=1;
+  86   3          }else if(play_trig_state==HIGH && P12==HIGH){
+  87   3            Enable_BIT2_FallEdge_Trig;
+  88   3            play_trig_state=LOW;
+  89   3            Play_state=STOP;
+  90   3            P11=0;
+  91   3          }
+  92   2          clr_PD;
+  93   2        }
+  94   1        if (testbit(PIF,3)) //USB PIN
+  95   1        {
+  96   2          clrbit(PIF,3);
+  97   2          Delay_1ms(1);
+  98   2          if(charge_trig_state==LOW && P13==LOW){
+  99   3            Enable_BIT3_RasingEdge_Trig;
+ 100   3            charge_trig_state=HIGH;
+ 101   3            Charge_state=OFF;
+ 102   3            Reset_system=1;
+ 103   3            P11=0;
+ 104   3            Send_Data_To_UART0(0xcc);
+ 105   3          }else if(charge_trig_state==HIGH && P13==HIGH){
+ 106   3            Enable_BIT3_FallEdge_Trig;
+ 107   3            charge_trig_state=LOW;
+C51 COMPILER V9.53.0.0   GPIO                                                              02/04/2018 22:43:56 PAGE 3   
 
- 108   2          command[count++]=*(cmd+tmp_cnt);
- 109   2          tmp_cnt++;
- 110   2        }
- 111   1        command[count]=0xEF;
- 112   1        while(out_cnt<=count){
- 113   2          Send_Data_To_UART0(command[out_cnt++]);
- 114   2        }
- 115   1      }
- 116          
- 117          int Control_CMD(uchar* cmd, uchar num){
- 118   1        int set_correct=0;
- 119   1          uchar timeout=2;
- 120   1          int str_num;
- 121   1          int j;
- 122   1          while(!set_correct && timeout--){
- 123   2              send_cmd(cmd, num);
- 124   2            str_num = get_result();
- 125   2              for(j=0; j<str_num-3; j++){
- 126   3                if(state_str[j]==0x7e && state_str[j+1]==0x02 && state_str[j+2]==0x00 && state_str[j+3]==0xef){
- 127   4                    set_correct=1;
- 128   4              return 0;
- 129   4                      break;
- 130   4                }
- 131   3              }
- 132   2          }
- 133   1        return -1;
- 134   1      }
- 135          
- 136          
- 137          int Get_Play_State()
- 138          {
- 139   1          uchar timeout=2;
- 140   1        int str_num;
- 141   1        int j;
- 142   1        
- 143   1          while(timeout--){
- 144   2            send_cmd(music_state, sizeof(music_state));
- 145   2            str_num = get_result();
- 146   2            for(j=0; j<str_num-3; j++){
- 147   3                if(state_str[j]==0x7e && state_str[j+2]==0x10){
- 148   4                  return state_str[j+3];
- 149   4                }
- 150   3            }
- 151   2          Delay_1ms(20);
- 152   2          }
- 153   1        return -1;
+ 108   3            Charge_state=ON;
+ 109   3            Reset_system=-1;
+ 110   3            P11=1;
+ 111   3            Send_Data_To_UART0(0xdd);
+ 112   3          }
+ 113   2          //Send_Data_To_UART0(0xcc);
+ 114   2          clr_PD;
+ 115   2        }
+ 116   1        return;
+ 117   1      }
+ 118          
+ 119          unsigned long wake_time=0;
+ 120          unsigned long timer_count=0;
+ 121          int Power_state=ON;
+ 122          
+ 123          /*********************************************************************************************************
+             -***
+ 124          *    TIMER 0 interrupt subroutine
+ 125          **********************************************************************************************************
+             -**/
+ 126          void Timer0_ISR (void) interrupt 1          //interrupt address is 0x000B
+ 127          {
+ 128   1          clr_TF0;
+ 129   1          clr_TR0;                                    //Stop Timer0
+ 130   1              TL0 = LOBYTE(TIMER_DIV12_VALUE_40ms);     //Find  define in "Function_define.h" "TIMER VALUE"
+ 131   1              TH0 = HIBYTE(TIMER_DIV12_VALUE_40ms);
+ 132   1          set_TR0;                                    //Start Timer0
+ 133   1          timer_count+=40;
+ 134   1          if(timer_count >= 1000){
+ 135   2            timer_count=0;
+ 136   2            wake_time++;
+ 137   2          }
+ 138   1          //Send_Data_To_UART0(0xcc);
+ 139   1      }
+ 140          
+ 141          void audio_power_on()
+ 142          {
+ 143   1        int timeout=25; //500ms for timeout
+ 144   1        int chip_ready=-1;
+ 145   1        
+ 146   1        AUDIO_CTRL=LOW;
+ 147   1      
+ 148   1        while(timeout-- && chip_ready==-1){
+ 149   2          Delay_1ms(20);
+ 150   2          chip_ready=Specify_Volume(28);
+ 151   2        }
+ 152   1        Delay_1ms(150);
+ 153   1        Power_state=ON;
  154   1      }
  155          
- 156          int Get_total_number()
+ 156          void audio_power_off()
  157          {
- 158   1          uchar timeout=2;
- 159   1        int str_num;
- 160   1        int j;
- 161   1        
- 162   1          while(timeout--){
- 163   2            send_cmd(music_number, sizeof(music_number));
- 164   2            str_num = get_result();
- 165   2            for(j=0; j<str_num-4; j++){
- 166   3                if(state_str[j]==0x7e && state_str[j+2]==0x17){
- 167   4              return state_str[j+4];
- 168   4                }
- 169   3            }
-C51 COMPILER V9.53.0.0   GPIO                                                              02/04/2018 21:56:39 PAGE 4   
+ 158   1        int org_p06=P06;
+ 159   1        int org_p07=P07;
+ 160   1        clr_TR0;                                    //Stop Timer0
+ 161   1        wake_time=0;
+ 162   1        AUDIO_CTRL=HIGH;
+ 163   1        P03=0;
+ 164   1        P04=0;
+ 165   1        org_p06=P06;
+ 166   1        org_p07=P07;
+ 167   1        P06=0;
+C51 COMPILER V9.53.0.0   GPIO                                                              02/04/2018 22:43:56 PAGE 4   
 
- 170   2          Delay_1ms(20);
- 171   2          }
- 172   1        return -1;
- 173   1      }
- 174          
- 175          int Play_head_music(){
- 176   1        Control_CMD(music_for_head, sizeof(music_for_head));
- 177   1        music_for_head[2]++;
- 178   1        if(LOBYTE(music_for_head[2])>HEAD_MUSIC_NUM){
- 179   2          music_for_head[2]=1;
- 180   2        }
- 181   1      }
- 182          
- 183          int Play_body_music()
- 184          {
- 185   1        int total_music=Get_total_number();
- 186   1        if(total_music > HEAD_MUSIC_NUM){
- 187   2          Control_CMD(music_for_next, sizeof(music_for_next));
- 188   2          music_for_next[2]++;
- 189   2          if(LOBYTE(music_for_next[2])>total_music-HEAD_MUSIC_NUM){
- 190   3            music_for_next[2]=1;
- 191   3          }
- 192   2        }
- 193   1      }
- 194          void Stop_music()
- 195          {
- 196   1        Control_CMD(music_stop, sizeof(music_stop));
- 197   1      }
- 198          
- 199          int Specify_Volume(uchar num)
- 200          {
- 201   1        
- 202   1      #if 0
-                volume_set[1] = num;
-                Control_CMD(volume_set, sizeof(volume_set));
-              #else
- 206   1          int set_correct=0;
- 207   1          uchar timeout=3;
- 208   1        int str_num;
- 209   1        int j;
- 210   1        volume_set[1] = num;
- 211   1        
- 212   1          while(!set_correct && timeout--){
- 213   2            send_cmd(volume_set, sizeof(volume_set));
- 214   2          Delay_1ms(13);  // 13ms is the best timedelay for volume set!
- 215   2            send_cmd(volume_get, sizeof(volume_get));
- 216   2            str_num = get_result();
- 217   2            for(j=0; j<str_num-3; j++){
- 218   3                if(state_str[j]==0x7e && state_str[j+2]==0x11 && state_str[j+3]==num){
- 219   4                  set_correct=1;
- 220   4              return 0;
- 221   4                }
- 222   3            }
- 223   2          }
- 224   1        return -1;
- 225   1      #endif
- 226   1      }
- 227          
- 228          #define setbit(x,y) x|=(1<<y) //½«XµÄµÚYÎ»ÖÃ1
- 229          #define testbit(x,y) x&(1<<y) //²âÊÔXµÄµÚYÎ»ÖÃ
- 230          #define clrbit(x,y) x&=!(1<<y) //½«XµÄµÚYÎ»Çå0
- 231          
-C51 COMPILER V9.53.0.0   GPIO                                                              02/04/2018 21:56:39 PAGE 5   
-
- 232          int button_trig_state=HIGH;
- 233          int play_trig_state=HIGH;
- 234          int charge_trig_state=HIGH;
- 235          
- 236          int Button_state=-1;
- 237          int Play_state=STOP;
- 238          int Charge_state=OFF;
- 239          int Reset_system=-1;
- 240          void PinInterrupt_ISR (void) interrupt 7
- 241          {
- 242   1        if (testbit(PIF,7)) //SWITCH PIN
- 243   1        {
- 244   2          clrbit(PIF,7);
- 245   2          Delay_1ms(1);
- 246   2          if(button_trig_state==LOW && P17==LOW){
- 247   3            Enable_BIT7_RasingEdge_Trig;
- 248   3            button_trig_state=HIGH;
- 249   3            Button_state=1;
- 250   3            P11=1;
- 251   3          }else if(button_trig_state==HIGH && P17==HIGH){
- 252   3            Enable_BIT7_FallEdge_Trig;
- 253   3            button_trig_state=LOW;
- 254   3            Button_state=0;
- 255   3            P11=0;
- 256   3          }
- 257   2          clr_PD;
- 258   2        }
- 259   1        if (testbit(PIF,2)) //BUSY PIN
- 260   1        {
- 261   2          clrbit(PIF,2);
- 262   2          Delay_1ms(1); 
- 263   2          if(play_trig_state==LOW && P12==LOW){
- 264   3            Enable_BIT2_RasingEdge_Trig;
- 265   3            play_trig_state=HIGH;
- 266   3            Play_state=PLAYING;
- 267   3            P11=1;
- 268   3          }else if(play_trig_state==HIGH && P12==HIGH){
- 269   3            Enable_BIT2_FallEdge_Trig;
- 270   3            play_trig_state=LOW;
- 271   3            Play_state=STOP;
- 272   3            P11=0;
- 273   3          }
- 274   2          clr_PD;
- 275   2        }
- 276   1        if (testbit(PIF,3)) //USB PIN
- 277   1        {
- 278   2          clrbit(PIF,3);
- 279   2          Delay_1ms(1);
- 280   2          if(charge_trig_state==LOW && P13==LOW){
- 281   3            Enable_BIT3_RasingEdge_Trig;
- 282   3            charge_trig_state=HIGH;
- 283   3            Charge_state=OFF;
- 284   3            Reset_system=1;
- 285   3            P11=0;
- 286   3            Send_Data_To_UART0(0xcc);
- 287   3          }else if(charge_trig_state==HIGH && P13==HIGH){
- 288   3            Enable_BIT3_FallEdge_Trig;
- 289   3            charge_trig_state=LOW;
- 290   3            Charge_state=ON;
- 291   3            Reset_system=-1;
- 292   3            P11=1;
- 293   3            Send_Data_To_UART0(0xdd);
-C51 COMPILER V9.53.0.0   GPIO                                                              02/04/2018 21:56:39 PAGE 6   
-
- 294   3          }
- 295   2          //Send_Data_To_UART0(0xcc);
- 296   2          clr_PD;
- 297   2        }
- 298   1        return;
- 299   1      }
- 300          
- 301          unsigned long wake_time=0;
- 302          unsigned long timer_count=0;
- 303          int Power_state=ON;
- 304          
- 305          /*********************************************************************************************************
-             -***
- 306          *    TIMER 0 interrupt subroutine
- 307          **********************************************************************************************************
-             -**/
- 308          void Timer0_ISR (void) interrupt 1          //interrupt address is 0x000B
- 309          {
- 310   1          clr_TF0;
- 311   1          clr_TR0;                                    //Stop Timer0
- 312   1              TL0 = LOBYTE(TIMER_DIV12_VALUE_40ms);     //Find  define in "Function_define.h" "TIMER VALUE"
- 313   1              TH0 = HIBYTE(TIMER_DIV12_VALUE_40ms);
- 314   1          set_TR0;                                    //Start Timer0
- 315   1          timer_count+=40;
- 316   1          if(timer_count >= 1000){
- 317   2            timer_count=0;
- 318   2            wake_time++;
- 319   2          }
- 320   1          //Send_Data_To_UART0(0xcc);
- 321   1      }
- 322          
- 323          void audio_power_on()
- 324          {
- 325   1        int timeout=25; //500ms for timeout
- 326   1        int chip_ready=-1;
- 327   1        
- 328   1        AUDIO_CTRL=LOW;
- 329   1      
- 330   1        while(timeout-- && chip_ready==-1){
- 331   2          Delay_1ms(20);
- 332   2          chip_ready=Specify_Volume(28);
- 333   2        }
- 334   1        Delay_1ms(150);
- 335   1        Power_state=ON;
- 336   1      }
- 337          
- 338          void audio_power_off()
- 339          {
- 340   1        int org_p06=P06;
- 341   1        int org_p07=P07;
- 342   1        clr_TR0;                                    //Stop Timer0
- 343   1        wake_time=0;
- 344   1        AUDIO_CTRL=HIGH;
- 345   1        P03=0;
- 346   1        P04=0;
- 347   1        org_p06=P06;
- 348   1        org_p07=P07;
- 349   1        P06=0;
- 350   1        P07=0;
- 351   1        P12_Quasi_Mode;
- 352   1        P12=0;
- 353   1        Power_state=OFF;
-C51 COMPILER V9.53.0.0   GPIO                                                              02/04/2018 21:56:39 PAGE 7   
-
- 354   1        
- 355   1        //Delay_1ms(1000);
- 356   1        set_PD;         //go to sleep mode
- 357   1        
- 358   1        P12_Input_Mode;
- 359   1        P06=org_p06;
- 360   1        P07=org_p07;
- 361   1        set_TR0;                                    //Timer0 run
- 362   1        Delay_1ms(2);
- 363   1        
- 364   1      }
- 365          //-----------------------------------------------------------------------------------------------
- 366          char SIN_TAB[64] = { 0x00, 0x0c, 0x18, 0x24, 0x30, 0x3b, 0x46, 0x50, 
- 367          0x59, 0x62, 0x69, 0x70, 0x75, 0x79, 0x7c, 0x7e, 
- 368          0x7f, 0x7e, 0x7c, 0x79, 0x75, 0x70, 0x69, 0x62, 
- 369          0x59, 0x50, 0x46, 0x3b, 0x30, 0x24, 0x18, 0x0c, 
- 370          0x00, -0x0c, -0x18, -0x24, -0x30, -0x3b, -0x46, -0x50, 
- 371          -0x59, -0x62, -0x69, -0x70, -0x75, -0x79, -0x7c, -0x7e, 
- 372          -0x7f, -0x7e, -0x7c, -0x79, -0x75, -0x70, -0x69, -0x62, 
- 373          -0x59, -0x50, -0x46, -0x3b, -0x30, -0x24, -0x18, -0x0c, 
- 374           };
- 375          //·Å´ó128±¶ºóµÄcosÕûÊý±í£¨128£©
- 376          char COS_TAB[64] = { 0x7f, 0x7e, 0x7c, 0x79, 0x75, 0x70, 0x69, 0x62, 
- 377          0x59, 0x50, 0x46, 0x3b, 0x30, 0x24, 0x18, 0x0c, 
- 378          0x00, -0x0c, -0x18, -0x24, -0x30, -0x3b, -0x46, -0x50, 
- 379          -0x59, -0x62, -0x69, -0x70, -0x75, -0x79, -0x7c, -0x7e, 
- 380          -0x7f, -0x7e, -0x7c, -0x79, -0x75, -0x70, -0x69, -0x62, 
- 381          -0x59, -0x50, -0x46, -0x3b, -0x30, -0x24, -0x18, -0x0c, 
- 382          0x00, 0x0c, 0x18, 0x24, 0x30, 0x3b, 0x46, 0x50, 
- 383          0x59, 0x62, 0x69, 0x70, 0x75, 0x79, 0x7c, 0x7e, 
- 384           };
- 385          
- 386          //²ÉÑù´æ´¢ÐòÁÐ±í
- 387          char LIST_TAB[64] = { 0, 32, 16, 48, 8, 40, 24, 56,
- 388          4, 36, 20, 52, 12, 44, 28, 60,
- 389          2, 34, 18, 50, 10, 42, 26, 58,
- 390          6, 38, 22, 54, 14, 46, 30, 62,
- 391          1, 33, 17, 49, 9, 41, 25, 57,
- 392          5, 37, 21, 53, 13, 45, 29, 61,
- 393          3, 35, 19, 51, 11, 43, 27, 59,
- 394          7, 39, 23, 55, 15, 47, 31, 63
- 395          };
- 396          
- 397          uchar COUNT=15,COUNT1=0,ADC_Count=0,LINE=15,G,T;
- 398          uchar i,j,k,b,p;                 
- 399          int Temp_Real,Temp_Imag,temp;                // ÖÐ¼äÁÙÊ±±äÁ¿  
- 400          uint TEMP1;
- 401          uchar PWM;  
- 402          int Fft_Real[64]={0XFF}; 
- 403          int Fft_Image[64];               // fftµÄÐé²¿ 
- 404          uchar LED_TAB2[32];        //¼ÇÂ¼ Æ¯¸¡Îï ÊÇ·ñÐèÒª Í£¶ÙÒ»ÏÂ
- 405          uchar LED_TAB[32];       //¼ÇÂ¼ºìÉ«Öù×´ 
- 406          uchar LED_TAB1[32];        //¼ÇÂ¼ Æ¯¸¡µã
- 407          
- 408          void FFT()
- 409          {     
- 410   1        //uchar x;              
- 411   1          for( i=1; i<=6; i++)                            /* for(1) */
- 412   1          { 
- 413   2              b=1;
- 414   2              b <<=(i-1);                                       //µúÊ½ÔËËã£¬ÓÃÓÚ¼ÆËã ¸ô¶àÉÙÐÐ¼ÆËã ÀýÈç µÚÒ»¼« 1º
-             -Í2ÐÐ¼ÆËã£¬£¬µÚ¶þ¼¶ 
-C51 COMPILER V9.53.0.0   GPIO                                                              02/04/2018 21:56:39 PAGE 8   
-
- 415   2              for( j=0; j<=b-1; j++)                              /* for (2) */
- 416   2              { 
- 417   3                  p=1;
- 418   3                  p <<= (7-i);            
- 419   3                  p = p*j;
- 420   3                  for( k=j; k<64; k=k+2*b)                /* for (3) »ù¶þfft */
- 421   3                  { 
- 422   4                      Temp_Real = Fft_Real[k]; 
- 423   4              Temp_Imag = Fft_Image[k]; 
- 424   4              temp = Fft_Real[k+b];
- 425   4                      Fft_Real[k] = Fft_Real[k] + ((Fft_Real[k+b]*COS_TAB[p])>>7) + ((Fft_Image[k+b]*SIN_TAB[p])
-             ->>7);
- 426   4                      Fft_Image[k] = Fft_Image[k] - ((Fft_Real[k+b]*SIN_TAB[p])>>7) + ((Fft_Image[k+b]*COS_TAB[p
-             -])>>7);
- 427   4                      Fft_Real[k+b] = Temp_Real - ((Fft_Real[k+b]*COS_TAB[p])>>7) - ((Fft_Image[k+b]*SIN_TAB[p])
-             ->>7);
- 428   4                      Fft_Image[k+b] = Temp_Imag + ((temp*SIN_TAB[p])>>7) - ((Fft_Image[k+b]*COS_TAB[p])>>7);   
-             -  
- 429   4                      // ÒÆÎ».·ÀÖ¹Òç³ö. ½á¹ûÒÑ¾­ÊÇ±¾ÖµµÄ 1/64               
- 430   4                      Fft_Real[k] >>= 1;             
- 431   4                      Fft_Image[k] >>= 1; 
- 432   4                      Fft_Real[k+b]  >>= 1;                 
- 433   4                      Fft_Image[k+b]  >>= 1; 
- 434   4      
- 435   4                                                                                     
- 436   4                  }     
- 437   3              } 
- 438   2          } 
- 439   1        Fft_Real[0]=Fft_Image[0]=0;     //È¥µôÖ±Á÷·ÖÁ¿
- 440   1        //Fft_Real[63]=Fft_Image[63]=0;
- 441   1         // if(fractional_frequency==64)
- 442   1      //  j_value=64;
- 443   1      //  else
- 444   1      //  j_value=20;
- 445   1      #if 0
-                  for(j=0; j<16; j++)
-                  {
-                   TEMP1=((((Fft_Real[j]* Fft_Real[j]))+((Fft_Image[j]*Fft_Image[j]))));//Çó¹¦ÂÊ
-                  
-                         if(TEMP1<9)i=1;             //ÇóÄ£²¢Á¿»¯
-                  else if(TEMP1<10)i=1;
-                  else if(TEMP1<20)i=2;
-                  else if(TEMP1<30)i=3;
-                  else if(TEMP1<40)i=4;
-                  else if(TEMP1<60)i=5;
-                  else if(TEMP1<80)i=6;
-                  else if(TEMP1<100)i=7;
-                  else if(TEMP1<120)i=8;
-                  else if(TEMP1<140)i=9;
-                  else if(TEMP1<160)i=10;
-                  else if(TEMP1<196)i=11;
-                  else if(TEMP1<220)i=12;
-                  else if(TEMP1<250)i=13;
-                  else i=20;
-                  
-                  LED_TAB[j]=i; 
-              
-                }       
-              #else
- 470   1          for(j=0;j<17;j++) 
- 471   1        {
- 472   2          TEMP1=((((Fft_Real[j]* Fft_Real[j]))+((Fft_Image[j]*Fft_Image[j]))));//Çó¹¦ÂÊ
-C51 COMPILER V9.53.0.0   GPIO                                                              02/04/2018 21:56:39 PAGE 9   
-
- 473   2        
- 474   2              if(TEMP1<6)
- 475   2            TEMP1=0;
- 476   2              else if(TEMP1<10)
- 477   2            TEMP1=1;
- 478   2              else if(TEMP1<16)
- 479   2            TEMP1=2;
- 480   2              else if(TEMP1<25)
- 481   2            TEMP1=3;
- 482   2              else if(TEMP1<36)
- 483   2            TEMP1=4;
- 484   2              else if(TEMP1<49)
- 485   2            TEMP1=5;
- 486   2              else if(TEMP1<55)
- 487   2            TEMP1=6;
- 488   2              else if(TEMP1<60)
- 489   2            TEMP1=7;
- 490   2              else if(TEMP1<65)
- 491   2            TEMP1=8;
- 492   2              else if(TEMP1<70)
- 493   2            TEMP1=9;
- 494   2              else if(TEMP1<75)
- 495   2            TEMP1=10;
- 496   2              else if(TEMP1<80)
- 497   2            TEMP1=11;
- 498   2              else if(TEMP1<96)
- 499   2            TEMP1=12;
- 500   2              else if(TEMP1<125)
- 501   2            TEMP1=13;
- 502   2              else if(TEMP1<156)
- 503   2            TEMP1=14;
- 504   2              else if(TEMP1<189)
- 505   2            TEMP1=15;
- 506   2              else if(TEMP1<224)
- 507   2            TEMP1=16;
- 508   2              else if(TEMP1<261)
- 509   2            TEMP1=17;
- 510   2              else if(TEMP1<300)
- 511   2            TEMP1=18;
- 512   2              else if(TEMP1<341)
- 513   2            TEMP1=19;
- 514   2              else if(TEMP1<384)
- 515   2            TEMP1=20;
- 516   2              else if(TEMP1<429)
- 517   2            TEMP1=21;
- 518   2              else if(TEMP1<476)
- 519   2            TEMP1=22;
- 520   2              else if(TEMP1<525)
- 521   2            TEMP1=23 ;
- 522   2              else if(TEMP1<576)
- 523   2            TEMP1=24;
- 524   2              else if(TEMP1<629)
- 525   2            TEMP1=25;
- 526   2              else if(TEMP1<684)
- 527   2            TEMP1=26;
- 528   2              else if(TEMP1<741)
- 529   2            TEMP1=27;
- 530   2              else if(TEMP1<800)
- 531   2            TEMP1=28;
- 532   2              else if(TEMP1<861)
- 533   2            TEMP1=29;
- 534   2              else if(TEMP1<1024)
-C51 COMPILER V9.53.0.0   GPIO                                                              02/04/2018 21:56:39 PAGE 10  
-
- 535   2            TEMP1=30;
- 536   2              else 
- 537   2            TEMP1=31;
- 538   2        
- 539   2            //if(TEMP1>(LED_TAB[j]))
- 540   2            LED_TAB[j]=TEMP1;        
- 541   2              if(TEMP1>(LED_TAB1[j]))
- 542   2              {   
- 543   3            LED_TAB1[j]=TEMP1;
- 544   3                  LED_TAB2[j]=7;  //12                                              //Ìá¶ÙËÙ¶È=12
- 545   3              }
- 546   2        }
- 547   1        #endif
- 548   1      }
- 549           void ADC_Finish()
- 550          {
- 551   1          int ADC_Count=0;
- 552   1        Enable_ADC_AIN5;
- 553   1          while(ADC_Count<=64)
- 554   1          {
- 555   2            Fft_Real[LIST_TAB[ADC_Count]]=get_adc()-256; //°´LIST_TAB±íÀïµÄË³Ðò£¬½øÐÐ´æ´¢ ²ÉÑùÖµ,,
-*** WARNING C206 IN LINE 555 OF Code\GPIO.C: 'get_adc': missing function-prototype
- 556   2            //  ADC_CONTR = ADC_POWER | ADC_SPEEDHH| ADC_START | channel;   // ÎªÁË²É¼¯¸ºµçÑ¹£¬²ÉÓÃ Æ«ÖÃ²É¼¯¡£µç
+ 168   1        P07=0;
+ 169   1        P12_Quasi_Mode;
+ 170   1        P12=0;
+ 171   1        Power_state=OFF;
+ 172   1        
+ 173   1        //Delay_1ms(1000);
+ 174   1        set_PD;         //go to sleep mode
+ 175   1        
+ 176   1        P12_Input_Mode;
+ 177   1        P06=org_p06;
+ 178   1        P07=org_p07;
+ 179   1        set_TR0;                                    //Timer0 run
+ 180   1        Delay_1ms(2);
+ 181   1        
+ 182   1      }
+ 183          
+ 184           void ADC_Finish()
+ 185          {
+ 186   1          int ADC_Count=0;
+ 187   1        Enable_ADC_AIN5;
+ 188   1          while(ADC_Count<=64)
+ 189   1          {
+ 190   2            Fft_Real[LIST_TAB[ADC_Count]]=get_adc()-256; //°´LIST_TAB±íÀïµÄË³Ðò£¬½øÐÐ´æ´¢ ²ÉÑùÖµ,,
+*** WARNING C206 IN LINE 190 OF Code\GPIO.C: 'get_adc': missing function-prototype
+ 191   2            //  ADC_CONTR = ADC_POWER | ADC_SPEEDHH| ADC_START | channel;   // ÎªÁË²É¼¯¸ºµçÑ¹£¬²ÉÓÃ Æ«ÖÃ²É¼¯¡£µç
              -Ñ¹Ìá¸ßµ½1/2 vcc£¬£¬ËùÒÔÒª¼õÈ¥256
- 557   2            ADC_Count++;
- 558   2          }
- 559   1      }
- 560          
- 561          // led num range is 0~1024
- 562          void LED_R(int num){
- 563   1        PWM1H = HIBYTE(num);        
- 564   1        PWM1L = LOBYTE(num);
- 565   1        PWM1_OUTPUT_INVERSE;
- 566   1        set_LOAD;
- 567   1      }
- 568          void LED_G(int num){
- 569   1        PWM3H = HIBYTE(num);        
- 570   1        PWM3L = LOBYTE(num);
- 571   1        PWM3_OUTPUT_INVERSE;
- 572   1        set_LOAD;
- 573   1      }
- 574          void LED_B(int num){
- 575   1        PWM2H = HIBYTE(num);        
- 576   1        PWM2L = LOBYTE(num);
- 577   1        PWM2_OUTPUT_INVERSE;
- 578   1        set_LOAD;
- 579   1      }
- 580          void init_LED(){
- 581   1        PWM1_P14_OUTPUT_ENABLE;
- 582   1        PWM3_P00_OUTPUT_ENABLE;
- 583   1        PWM2_P05_OUTPUT_ENABLE;
- 584   1      
- 585   1        PWM_IMDEPENDENT_MODE;
- 586   1        PWM_CLOCK_DIV_8;
- 587   1        PWMPH = 0x07;
- 588   1        PWMPL = 0xCF;
- 589   1        
- 590   1        LED_R(0);
- 591   1        LED_G(0);
- 592   1        LED_B(0);
- 593   1        set_PWMRUN;
- 594   1      }
-C51 COMPILER V9.53.0.0   GPIO                                                              02/04/2018 21:56:39 PAGE 11  
+ 192   2            ADC_Count++;
+ 193   2          }
+ 194   1      }
+ 195          
+ 196          // led num range is 0~1024
+ 197          void LED_R(int num){
+ 198   1        PWM1H = HIBYTE(num);        
+ 199   1        PWM1L = LOBYTE(num);
+ 200   1        PWM1_OUTPUT_INVERSE;
+ 201   1        set_LOAD;
+ 202   1      }
+ 203          void LED_G(int num){
+ 204   1        PWM3H = HIBYTE(num);        
+ 205   1        PWM3L = LOBYTE(num);
+ 206   1        PWM3_OUTPUT_INVERSE;
+ 207   1        set_LOAD;
+ 208   1      }
+ 209          void LED_B(int num){
+ 210   1        PWM2H = HIBYTE(num);        
+ 211   1        PWM2L = LOBYTE(num);
+ 212   1        PWM2_OUTPUT_INVERSE;
+ 213   1        set_LOAD;
+ 214   1      }
+ 215          void init_LED(){
+ 216   1        PWM1_P14_OUTPUT_ENABLE;
+ 217   1        PWM3_P00_OUTPUT_ENABLE;
+ 218   1        PWM2_P05_OUTPUT_ENABLE;
+ 219   1      
+ 220   1        PWM_IMDEPENDENT_MODE;
+ 221   1        PWM_CLOCK_DIV_8;
+ 222   1        PWMPH = 0x07;
+ 223   1        PWMPL = 0xCF;
+ 224   1        
+ 225   1        LED_R(0);
+ 226   1        LED_G(0);
+ 227   1        LED_B(0);
+C51 COMPILER V9.53.0.0   GPIO                                                              02/04/2018 22:43:56 PAGE 5   
 
- 595          //-----------------------------------------------------------------------------------
- 596          
- 597          int get_adc(void)
- 598          {
- 599   1        clr_ADCF;
- 600   1        set_ADCS;                 // ADC start trig signal
- 601   1        while(ADCF == 0);
- 602   1          return (int)(ADCRH<<2) + (int)((ADCRL&0x0f)>>2);//(((int)ADCRH)<<4+ADCRL&0x0f);
- 603   1      }
- 604          
- 605          int Head_Music_Play=0;
- 606          int Body_Music_Play=0;
- 607          void main (void) 
- 608          {
- 609   1        int music_num=1;
- 610   1        int play_state=-1;
- 611   1        
- 612   1        //set_PD;                 //powerdown directly 131.5uA
- 613   1        Set_All_GPIO_Quasi_Mode;          // Define in Function_define.h
- 614   1        P11=0;
- 615   1        P01_PushPull_Mode;
- 616   1      #if 1 
- 617   1        AUDIO_CTRL=1;
- 618   1        Delay_1ms(500);
- 619   1        InitialUART0_Timer1(9600);
- 620   1        Send_Data_To_UART0(0xaa);
- 621   1        Send_Data_To_UART0(0xaa);
- 622   1        Send_Data_To_UART0(0xaa);
- 623   1        set_CLOEN; 
- 624   1        audio_power_on();
- 625   1      #endif
- 626   1      
- 627   1      #if 1
- 628   1        TIMER0_MODE0_ENABLE;                        //Timer 0 and Timer 1 mode configuration
- 629   1        clr_T0M;
- 630   1          TMOD |= 0x01;                               //Timer0 is 16-bit mode
- 631   1          TL0 = LOBYTE(TIMER_DIV12_VALUE_40ms);     //Find  define in "Function_define.h" "TIMER VALUE"
- 632   1          TH0 = HIBYTE(TIMER_DIV12_VALUE_40ms);
- 633   1        set_ET0;                                    //enable Timer0 interrupt
- 634   1        set_EA;                                     //enable interrupts
- 635   1        set_TR0;                                    //Timer0 run
- 636   1      #endif
- 637   1      
- 638   1      #if 1
- 639   1        //Switch detect
- 640   1        P17_Input_Mode;
- 641   1        set_P0S_7;
- 642   1        Enable_BIT7_FallEdge_Trig;
- 643   1        button_trig_state=LOW;
- 644   1        
- 645   1        //USB detect
- 646   1        P13_Input_Mode;
- 647   1        set_P0S_3;
- 648   1        Enable_BIT3_RasingEdge_Trig;
- 649   1        charge_trig_state=HIGH;
- 650   1        
- 651   1        //audio BUSY pin
- 652   1        P12_Input_Mode;
- 653   1        set_P0S_2;
- 654   1        Enable_BIT2_FallEdge_Trig;
- 655   1        play_trig_state=LOW;
- 656   1      
-C51 COMPILER V9.53.0.0   GPIO                                                              02/04/2018 21:56:39 PAGE 12  
+ 228   1        set_PWMRUN;
+ 229   1      }
+ 230          //-----------------------------------------------------------------------------------
+ 231          
+ 232          int get_adc(void)
+ 233          {
+ 234   1        clr_ADCF;
+ 235   1        set_ADCS;                 // ADC start trig signal
+ 236   1        while(ADCF == 0);
+ 237   1          return (int)(ADCRH<<2) + (int)((ADCRL&0x0f)>>2);//(((int)ADCRH)<<4+ADCRL&0x0f);
+ 238   1      }
+ 239          
+ 240          int Head_Music_Play=0;
+ 241          int Body_Music_Play=0;
+ 242          void main (void) 
+ 243          {
+ 244   1        int music_num=1;
+ 245   1        int play_state=-1;
+ 246   1        
+ 247   1        //set_PD;                 //powerdown directly 131.5uA
+ 248   1        Set_All_GPIO_Quasi_Mode;          // Define in Function_define.h
+ 249   1        P11=0;
+ 250   1        P01_PushPull_Mode;
+ 251   1      #if 1 
+ 252   1        AUDIO_CTRL=1;
+ 253   1        Delay_1ms(500);
+ 254   1        InitialUART0_Timer1(9600);
+ 255   1        Send_Data_To_UART0(0xaa);
+ 256   1        Send_Data_To_UART0(0xaa);
+ 257   1        Send_Data_To_UART0(0xaa);
+ 258   1        set_CLOEN; 
+ 259   1        audio_power_on();
+ 260   1      #endif
+ 261   1      
+ 262   1      #if 1
+ 263   1        TIMER0_MODE0_ENABLE;                        //Timer 0 and Timer 1 mode configuration
+ 264   1        clr_T0M;
+ 265   1          TMOD |= 0x01;                               //Timer0 is 16-bit mode
+ 266   1          TL0 = LOBYTE(TIMER_DIV12_VALUE_40ms);     //Find  define in "Function_define.h" "TIMER VALUE"
+ 267   1          TH0 = HIBYTE(TIMER_DIV12_VALUE_40ms);
+ 268   1        set_ET0;                                    //enable Timer0 interrupt
+ 269   1        set_EA;                                     //enable interrupts
+ 270   1        set_TR0;                                    //Timer0 run
+ 271   1      #endif
+ 272   1      
+ 273   1      #if 1
+ 274   1        //Switch detect
+ 275   1        P17_Input_Mode;
+ 276   1        set_P0S_7;
+ 277   1        Enable_BIT7_FallEdge_Trig;
+ 278   1        button_trig_state=LOW;
+ 279   1        
+ 280   1        //USB detect
+ 281   1        P13_Input_Mode;
+ 282   1        set_P0S_3;
+ 283   1        Enable_BIT3_RasingEdge_Trig;
+ 284   1        charge_trig_state=HIGH;
+ 285   1        
+ 286   1        //audio BUSY pin
+ 287   1        P12_Input_Mode;
+ 288   1        set_P0S_2;
+ 289   1        Enable_BIT2_FallEdge_Trig;
+C51 COMPILER V9.53.0.0   GPIO                                                              02/04/2018 22:43:56 PAGE 6   
 
- 657   1        Enable_INT_Port1;
- 658   1        set_EPI;              // Enable pin interrupt
- 659   1        set_EX0;
- 660   1        set_EA;               // global enable bit
- 661   1      
- 662   1      #endif
- 663   1        init_LED();
- 664   1        //Delay_1ms(1000);
- 665   1        Specify_Volume(SYS_VOLUME);
- 666   1        //Specify_Volume(5);
- 667   1        while(0){
- 668   2          audio_power_on();
- 669   2          Delay_1ms(1000);
- 670   2          Specify_Volume(SYS_VOLUME);
- 671   2          //Play_body_music();
- 672   2          Control_CMD(music_next, sizeof(music_next));
- 673   2          Delay_1ms(5000);
- 674   2          audio_power_off();
- 675   2          Delay_1ms(1000);
- 676   2        }
- 677   1        while(1){
- 678   2          //set_PD;         //powerdown here can be 145.8uA
- 679   2      
- 680   2          if(Button_state==1 && Charge_state==OFF){
- 681   3            Button_state=-1;
- 682   3            if(Power_state==OFF){
- 683   4              audio_power_on();
- 684   4              Specify_Volume(SYS_VOLUME);
- 685   4            }
- 686   3            Play_head_music();
- 687   3            //Head_Music_Play=1;
- 688   3            Body_Music_Play=0;
- 689   3          }
- 690   2          if(Button_state==0 && Charge_state==OFF){
- 691   3            Button_state=-1;
- 692   3            Body_Music_Play=1;
- 693   3          }
- 694   2          if(Play_state==PLAYING){
- 695   3            int i=0;
- 696   3            int red=0, green=0, blue=0;
- 697   3            set_PWMRUN;
- 698   3            ADC_Finish();
- 699   3            FFT();
- 700   3      #if 0
+ 290   1        play_trig_state=LOW;
+ 291   1      
+ 292   1        Enable_INT_Port1;
+ 293   1        set_EPI;              // Enable pin interrupt
+ 294   1        set_EX0;
+ 295   1        set_EA;               // global enable bit
+ 296   1      
+ 297   1      #endif
+ 298   1        init_LED();
+ 299   1        //Delay_1ms(1000);
+ 300   1        Specify_Volume(SYS_VOLUME);
+ 301   1        //Specify_Volume(5);
+ 302   1        while(0){
+ 303   2          audio_power_on();
+ 304   2          Delay_1ms(1000);
+ 305   2          Specify_Volume(SYS_VOLUME);
+ 306   2          //Play_body_music();
+ 307   2          Control_CMD(music_next, sizeof(music_next));
+ 308   2          Delay_1ms(5000);
+ 309   2          audio_power_off();
+ 310   2          Delay_1ms(1000);
+ 311   2        }
+ 312   1        while(1){
+ 313   2          //set_PD;         //powerdown here can be 145.8uA
+ 314   2      
+ 315   2          if(Button_state==1 && Charge_state==OFF){
+ 316   3            Button_state=-1;
+ 317   3            if(Power_state==OFF){
+ 318   4              audio_power_on();
+ 319   4              Specify_Volume(SYS_VOLUME);
+ 320   4            }
+ 321   3            Play_head_music();
+ 322   3            //Head_Music_Play=1;
+ 323   3            Body_Music_Play=0;
+ 324   3          }
+ 325   2          if(Button_state==0 && Charge_state==OFF){
+ 326   3            Button_state=-1;
+ 327   3            Body_Music_Play=1;
+ 328   3          }
+ 329   2          if(Play_state==PLAYING){
+ 330   3            int i=0;
+ 331   3            int red=0, green=0, blue=0;
+ 332   3            set_PWMRUN;
+ 333   3            ADC_Finish();
+ 334   3            FFT();
+ 335   3      #if 0
                       for(i=0; i<16; i++){
                         Send_Data_To_UART0(LED_TAB[i]);
                       }
                     Send_Data_To_UART0('\n');
               #endif
- 706   3            red=LED_TAB[1]+LED_TAB[2]+LED_TAB[3]+LED_TAB[4]+LED_TAB[5];
- 707   3            green=LED_TAB[6]+LED_TAB[7]+LED_TAB[8]+LED_TAB[9]+LED_TAB[10];
- 708   3            blue=LED_TAB[11]+LED_TAB[12]+LED_TAB[13]+LED_TAB[14]+LED_TAB[15];
- 709   3            red=red*3;
- 710   3            green=green*3;
- 711   3            green=green*3;
- 712   3            LED_R(red);
- 713   3            LED_G(green);
- 714   3            LED_B(blue);
- 715   3              wake_time = 0;
- 716   3            //set_IDL;
- 717   3          }
- 718   2          if(Play_state==PLAYING && Charge_state==ON){
-C51 COMPILER V9.53.0.0   GPIO                                                              02/04/2018 21:56:39 PAGE 13  
+ 341   3            red=LED_TAB[1]+LED_TAB[2]+LED_TAB[3]+LED_TAB[4]+LED_TAB[5];
+ 342   3            green=LED_TAB[6]+LED_TAB[7]+LED_TAB[8]+LED_TAB[9]+LED_TAB[10];
+ 343   3            blue=LED_TAB[11]+LED_TAB[12]+LED_TAB[13]+LED_TAB[14]+LED_TAB[15];
+ 344   3            red=red*3;
+ 345   3            green=green*3;
+ 346   3            green=green*3;
+ 347   3            LED_R(red);
+ 348   3            LED_G(green);
+ 349   3            LED_B(blue);
+ 350   3              wake_time = 0;
+ 351   3            //set_IDL;
+C51 COMPILER V9.53.0.0   GPIO                                                              02/04/2018 22:43:56 PAGE 7   
 
- 719   3            Stop_music();
- 720   3          }
- 721   2          if(Play_state==STOP){
- 722   3            LED_R(0);
- 723   3            LED_G(0);
- 724   3            LED_B(0);
- 725   3            //clr_PWMRUN;
- 726   3            set_IDL;
- 727   3          }
- 728   2          if(Reset_system==1 && Play_state==STOP){
- 729   3            Delay_1ms(500);       //Add delay 600ms, in case USB connection problem.
- 730   3            if(Reset_system==1){
- 731   4              Reset_system=-1;
- 732   4              SW_Reset();
-*** WARNING C206 IN LINE 732 OF Code\GPIO.C: 'SW_Reset': missing function-prototype
- 733   4            }
- 734   3          }
- 735   2      
- 736   2          if(Charge_state==ON && Power_state==OFF){
- 737   3            audio_power_on();
- 738   3            Specify_Volume(SYS_VOLUME);
- 739   3          }
- 740   2          if(Play_state==STOP && Charge_state==OFF && wake_time > MINIT*1)
- 741   2          {
- 742   3            Send_Data_To_UART0(0xaa);
- 743   3            audio_power_off();
- 744   3          }
- 745   2          if(Charge_state==ON && wake_time > MINIT*20)
- 746   2          {
- 747   3            Send_Data_To_UART0(0xbb);
- 748   3            audio_power_off();
- 749   3          }
- 750   2      #if 0
+ 352   3          }
+ 353   2          if(Play_state==PLAYING && Charge_state==ON){
+ 354   3            Stop_music();
+ 355   3          }
+ 356   2          if(Play_state==STOP){
+ 357   3            LED_R(0);
+ 358   3            LED_G(0);
+ 359   3            LED_B(0);
+ 360   3            set_IDL;
+ 361   3          }
+ 362   2          if(Reset_system==1 && Play_state==STOP){
+ 363   3            Delay_1ms(500);       //Add delay 600ms, in case USB connection problem.
+ 364   3            if(Reset_system==1){
+ 365   4              Reset_system=-1;
+ 366   4              SW_Reset();
+*** WARNING C206 IN LINE 366 OF Code\GPIO.C: 'SW_Reset': missing function-prototype
+ 367   4            }
+ 368   3          }
+ 369   2      
+ 370   2          if(Charge_state==ON && Power_state==OFF){
+ 371   3            audio_power_on();
+ 372   3            Specify_Volume(SYS_VOLUME);
+ 373   3          }
+ 374   2          if(Play_state==STOP && Charge_state==OFF && wake_time > MINIT)
+ 375   2          {
+ 376   3            Send_Data_To_UART0(0xaa);
+ 377   3            audio_power_off();
+ 378   3          }
+ 379   2          if(Charge_state==ON && wake_time > MINIT*20)  //power off audio, to make sure device can charge to full.
+ 380   2          {
+ 381   3            Send_Data_To_UART0(0xbb);
+ 382   3            audio_power_off();
+ 383   3          }
+ 384   2      #if 0
                   if(Play_state==STOP && Head_Music_Play==1){
                     Head_Music_Play=0;
                   }
               #endif
- 755   2          if(Play_state==STOP && Body_Music_Play==1){
- 756   3            if(Power_state==ON){
- 757   4              Play_body_music();
- 758   4            }
- 759   3            Body_Music_Play=0;
- 760   3          }
- 761   2        }
- 762   1      }
-*** WARNING C290 IN LINE 181 OF Code\GPIO.C: missing return value
-*** WARNING C290 IN LINE 193 OF Code\GPIO.C: missing return value
-*** WARNING C294 IN LINE 668 OF Code\GPIO.C: unreachable code
+ 389   2          if(Play_state==STOP && Body_Music_Play==1){
+ 390   3            if(Power_state==ON){
+ 391   4              Play_body_music();
+ 392   4            }
+ 393   3            Body_Music_Play=0;
+ 394   3          }
+ 395   2        }
+ 396   1      }
+*** WARNING C290 IN LINE 126 OF Code\GPIO.C: missing return value
+*** WARNING C290 IN LINE 138 OF Code\GPIO.C: missing return value
+*** WARNING C294 IN LINE 303 OF Code\GPIO.C: unreachable code
 
 
 MODULE INFORMATION:   STATIC OVERLAYABLE
-   CODE SIZE        =   5176    ----
+   CODE SIZE        =   5086    ----
    CONSTANT SIZE    =   ----    ----
    XDATA SIZE       =    652      68
    PDATA SIZE       =   ----    ----

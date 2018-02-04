@@ -1,0 +1,163 @@
+C51 COMPILER V9.53.0.0   MUSIC_CONTROL                                                     02/04/2018 22:41:50 PAGE 1   
+
+
+C51 COMPILER V9.53.0.0, COMPILATION OF MODULE MUSIC_CONTROL
+OBJECT MODULE PLACED IN .\Output\Music_control.obj
+COMPILER INVOKED BY: C:\Keil_v5\C51\BIN\C51.EXE Code\Music_control.c LARGE OPTIMIZE(4,SPEED) BROWSE INCDIR(..\..\Include
+                    -) DEFINE(FOSC_160000) DEBUG OBJECTEXTEND PRINT(.\LST\Music_control.lst) TABS(2) OBJECT(.\Output\Music_control.obj)
+
+line level    source
+
+   1          #include "Music_control.h"
+*** ERROR C129 IN LINE 4 OF Code\Music_control.h: missing ';' before 'music_play'
+   2          
+   3          uchar get_result()
+   4          {
+   5              int result_num=0;
+   6            int timeout=250;
+   7          
+   8            while(!RI && timeout--){
+   9              Delay_100us(1);   //delay 25ms
+  10            }
+  11              while (RI) {
+  12                state_str[result_num++]=Receive_Data_From_UART0();
+  13              timeout=8000;
+  14              while(!RI && timeout--);
+  15              }
+  16              return result_num;
+  17          }
+  18          
+  19          void send_cmd(uchar* cmd, uchar num){
+  20            uchar count=0;
+  21            uchar command[15];
+  22            uchar tmp_cnt=0;
+  23            int out_cnt=0;
+  24            
+  25            command[count++]=0x7E;
+  26            command[count++]=0x01+num;
+  27            while(tmp_cnt<num){
+  28              command[count++]=*(cmd+tmp_cnt);
+  29              tmp_cnt++;
+  30            }
+  31            command[count]=0xEF;
+  32            while(out_cnt<=count){
+  33              Send_Data_To_UART0(command[out_cnt++]);
+  34            }
+  35          }
+  36          
+  37          int Control_CMD(uchar* cmd, uchar num){
+  38            int set_correct=0;
+  39              uchar timeout=2;
+  40              int str_num;
+  41              int j;
+  42              while(!set_correct && timeout--){
+  43                  send_cmd(cmd, num);
+  44                str_num = get_result();
+  45                  for(j=0; j<str_num-3; j++){
+  46                    if(state_str[j]==0x7e && state_str[j+1]==0x02 && state_str[j+2]==0x00 && state_str[j+3]==0xef){
+  47                        set_correct=1;
+  48                  return 0;
+  49                          break;
+  50                    }
+  51                  }
+  52              }
+  53            return -1;
+C51 COMPILER V9.53.0.0   MUSIC_CONTROL                                                     02/04/2018 22:41:50 PAGE 2   
+
+  54          }
+  55          
+  56          
+  57          int Get_Play_State()
+  58          {
+  59              uchar timeout=2;
+  60            int str_num;
+  61            int j;
+  62            
+  63              while(timeout--){
+  64                send_cmd(music_state, sizeof(music_state));
+  65                str_num = get_result();
+  66                for(j=0; j<str_num-3; j++){
+  67                    if(state_str[j]==0x7e && state_str[j+2]==0x10){
+  68                      return state_str[j+3];
+  69                    }
+  70                }
+  71              Delay_1ms(20);
+  72              }
+  73            return -1;
+  74          }
+  75          
+  76          int Get_total_number()
+  77          {
+  78              uchar timeout=2;
+  79            int str_num;
+  80            int j;
+  81            
+  82              while(timeout--){
+  83                send_cmd(music_number, sizeof(music_number));
+  84                str_num = get_result();
+  85                for(j=0; j<str_num-4; j++){
+  86                    if(state_str[j]==0x7e && state_str[j+2]==0x17){
+  87                  return state_str[j+4];
+  88                    }
+  89                }
+  90              Delay_1ms(20);
+  91              }
+  92            return -1;
+  93          }
+  94          
+  95          int Play_head_music(){
+  96            Control_CMD(music_for_head, sizeof(music_for_head));
+  97            music_for_head[2]++;
+  98            if(LOBYTE(music_for_head[2])>HEAD_MUSIC_NUM){
+  99              music_for_head[2]=1;
+ 100            }
+ 101          }
+ 102          
+ 103          int Play_body_music()
+ 104          {
+ 105            int total_music=Get_total_number();
+ 106            if(total_music > HEAD_MUSIC_NUM){
+ 107              Control_CMD(music_for_next, sizeof(music_for_next));
+ 108              music_for_next[2]++;
+ 109              if(LOBYTE(music_for_next[2])>total_music-HEAD_MUSIC_NUM){
+ 110                music_for_next[2]=1;
+ 111              }
+ 112            }
+ 113          }
+ 114          void Stop_music()
+ 115          {
+C51 COMPILER V9.53.0.0   MUSIC_CONTROL                                                     02/04/2018 22:41:50 PAGE 3   
+
+ 116            Control_CMD(music_stop, sizeof(music_stop));
+ 117          }
+ 118          
+ 119          int Specify_Volume(uchar num)
+ 120          {
+ 121            
+ 122          #if 0
+                volume_set[1] = num;
+                Control_CMD(volume_set, sizeof(volume_set));
+              #else
+ 126              int set_correct=0;
+ 127              uchar timeout=3;
+ 128            int str_num;
+ 129            int j;
+ 130            volume_set[1] = num;
+ 131            
+ 132              while(!set_correct && timeout--){
+ 133                send_cmd(volume_set, sizeof(volume_set));
+ 134              Delay_1ms(13);  // 13ms is the best timedelay for volume set!
+ 135                send_cmd(volume_get, sizeof(volume_get));
+ 136                str_num = get_result();
+ 137                for(j=0; j<str_num-3; j++){
+ 138                    if(state_str[j]==0x7e && state_str[j+2]==0x11 && state_str[j+3]==num){
+ 139                      set_correct=1;
+ 140                  return 0;
+ 141                    }
+ 142                }
+ 143              }
+ 144            return -1;
+ 145          #endif
+ 146          }
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  1 ERROR(S)
