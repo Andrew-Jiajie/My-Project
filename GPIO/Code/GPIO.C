@@ -35,6 +35,7 @@
 
 #define SYS_VOLUME 35
 #define AUDIO_CTRL P01
+#define DEBUG_LED	P11
 
 /*------------------------------------------------
 The main C function.  Program execution starts
@@ -58,54 +59,54 @@ void PinInterrupt_ISR (void) interrupt 7
 	if (testbit(PIF,7))	//SWITCH PIN
 	{
 		clrbit(PIF,7);
-		Delay_1ms(1);
+		Delay_1ms(5);
 		if(button_trig_state==LOW && P17==LOW){
 			Enable_BIT7_RasingEdge_Trig;
 			button_trig_state=HIGH;
 			Button_state=1;
-			P11=1;
+			DEBUG_LED=1;
 		}else if(button_trig_state==HIGH && P17==HIGH){
 			Enable_BIT7_FallEdge_Trig;
 			button_trig_state=LOW;
 			Button_state=0;
-			P11=0;
+			DEBUG_LED=0;
 		}
 		clr_PD;
 	}
 	if (testbit(PIF,2))	//BUSY PIN
 	{
 		clrbit(PIF,2);
-		Delay_1ms(1);	
+		Delay_1ms(3);	
 		if(play_trig_state==LOW && P12==LOW){
 			Enable_BIT2_RasingEdge_Trig;
 			play_trig_state=HIGH;
 			Play_state=PLAYING;
-			P11=1;
+			DEBUG_LED=1;
 		}else if(play_trig_state==HIGH && P12==HIGH){
 			Enable_BIT2_FallEdge_Trig;
 			play_trig_state=LOW;
 			Play_state=STOP;
-			P11=0;
+			DEBUG_LED=0;
 		}
 		clr_PD;
 	}
 	if (testbit(PIF,3))	//USB PIN
 	{
 		clrbit(PIF,3);
-		Delay_1ms(1);
+		Delay_1ms(3);
 		if(charge_trig_state==LOW && P13==LOW){
 			Enable_BIT3_RasingEdge_Trig;
 			charge_trig_state=HIGH;
 			Charge_state=OFF;
 			Reset_system=1;
-			P11=0;
+			DEBUG_LED=0;
 			Send_Data_To_UART0(0xcc);
 		}else if(charge_trig_state==HIGH && P13==HIGH){
 			Enable_BIT3_FallEdge_Trig;
 			charge_trig_state=LOW;
 			Charge_state=ON;
 			Reset_system=-1;
-			P11=1;
+			DEBUG_LED=1;
 			Send_Data_To_UART0(0xdd);
 		}
 		//Send_Data_To_UART0(0xcc);
@@ -147,7 +148,7 @@ void audio_power_on()
 		Delay_1ms(20);
 		chip_ready=Specify_Volume(28);
 	}
-	Delay_1ms(150);
+	Delay_1ms(120);
 	Power_state=ON;
 }
 
@@ -155,23 +156,34 @@ void audio_power_off()
 {
 	int org_p06=P06;
 	int org_p07=P07;
+	int org_p03=P03;
+	int org_p04=P04;
+	int org_p12=P12;
 	clr_TR0;                              		  //Stop Timer0
 	wake_time=0;
 	AUDIO_CTRL=HIGH;
-	P03=0;
-	P04=0;
+	org_p03=P03;
+	org_p04=P04;
 	org_p06=P06;
 	org_p07=P07;
+	org_p12=P12;
+	P03_Quasi_Mode;
+	P04_Quasi_Mode;
+	P12_Quasi_Mode;
+	P03=0;
+	P04=0;
 	P06=0;
 	P07=0;
-	P12_Quasi_Mode;
 	P12=0;
 	Power_state=OFF;
 	
 	//Delay_1ms(1000);
 	set_PD;					//go to sleep mode
 	
+	P12=org_p12;
 	P12_Input_Mode;
+	P03=org_p03;
+	P04=org_p04;
 	P06=org_p06;
 	P07=org_p07;
 	set_TR0;                                    //Timer0 run
@@ -244,11 +256,11 @@ void main (void)
 	
 	//set_PD;									//powerdown directly 131.5uA
 	Set_All_GPIO_Quasi_Mode;					// Define in Function_define.h
-	P11=0;
+	DEBUG_LED=0;
 	P01_PushPull_Mode;
-#if 1	
+#if 1
 	AUDIO_CTRL=1;
-	Delay_1ms(500);
+	Delay_1ms(300);
 	InitialUART0_Timer1(9600);
 	Send_Data_To_UART0(0xaa);
 	Send_Data_To_UART0(0xaa);
@@ -294,9 +306,7 @@ void main (void)
 
 #endif
 	init_LED();
-	//Delay_1ms(1000);
 	Specify_Volume(SYS_VOLUME);
-	//Specify_Volume(5);
 	while(0){
 		audio_power_on();
 		Delay_1ms(1000);
@@ -309,7 +319,6 @@ void main (void)
 	}
 	while(1){
 		//set_PD;					//powerdown here can be 145.8uA
-
 		if(Button_state==1 && Charge_state==OFF){
 			Button_state=-1;
 			if(Power_state==OFF){
@@ -323,6 +332,12 @@ void main (void)
 		if(Button_state==0 && Charge_state==OFF){
 			Button_state=-1;
 			Body_Music_Play=1;
+		}
+		if(Play_state==STOP && Body_Music_Play==1){
+			Body_Music_Play=0;
+			if(Power_state==ON){
+				Play_body_music();
+			}
 		}
 		if(Play_state==PLAYING){
 			int i=0;
@@ -366,6 +381,7 @@ void main (void)
 		}
 
 		if(Charge_state==ON && Power_state==OFF){
+			wake_time = 0;
 			audio_power_on();
 			Specify_Volume(SYS_VOLUME);
 		}
@@ -384,11 +400,6 @@ void main (void)
 			Head_Music_Play=0;
 		}
 #endif
-		if(Play_state==STOP && Body_Music_Play==1){
-			if(Power_state==ON){
-				Play_body_music();
-			}
-			Body_Music_Play=0;
-		}
+
 	}
 }
