@@ -1,5 +1,9 @@
 
 #define HEAD_MUSIC_NUM 2
+#define TYPE_NONE 0
+#define TYPE_AC 1
+#define TYPE_USB 2
+
 
 uchar music_play[]={0x01};
 uchar music_stop[]={0x0E};
@@ -136,6 +140,22 @@ int Play_body_music()
 		}
 	}
 }
+int Get_charge_type(int timeout){
+	int str_num;
+	int j;
+  	while(timeout--){
+    	str_num = get_result();		//25ms each time
+    	for(j=0; j<str_num-4; j++){
+      	  if(state_str[j]==0x7e && state_str[j+2]==0x3f && state_str[j+3]==0x04){
+			  return TYPE_AC;
+      	  }
+      	  if(state_str[j]==0x7e && state_str[j+2]==0x3f && state_str[j+3]==0x0c){
+			  return TYPE_USB;
+      	  }
+    	}
+  	}
+	return TYPE_NONE;
+}
 void Stop_music()
 {
 	Control_CMD(music_stop, sizeof(music_stop));
@@ -144,7 +164,7 @@ void Stop_music()
 int Specify_Volume(uchar num)
 {
 	
-#if 0
+#if 1
 	volume_set[1] = num;
 	Control_CMD(volume_set, sizeof(volume_set));
 #else

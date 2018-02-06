@@ -32,6 +32,7 @@
 #define SOURCE_TF 2
 #define SOURCE_FLASH 3
 #define MINIT 	60
+#define SECOND 1
 
 #define SYS_VOLUME 35
 #define AUDIO_CTRL P01
@@ -54,22 +55,23 @@ int Button_state=-1;
 int Play_state=STOP;
 int Charge_state=OFF;
 int Reset_system=-1;
+int Reset_audio=-1;
+int Power_state=ON;
+int charge_type=TYPE_NONE;
 void PinInterrupt_ISR (void) interrupt 7
 {
 	if (testbit(PIF,7))	//SWITCH PIN
 	{
 		clrbit(PIF,7);
-		Delay_1ms(5);
+		Delay_1ms(1);
 		if(button_trig_state==LOW && P17==LOW){
 			Enable_BIT7_RasingEdge_Trig;
 			button_trig_state=HIGH;
 			Button_state=1;
-			DEBUG_LED=1;
 		}else if(button_trig_state==HIGH && P17==HIGH){
 			Enable_BIT7_FallEdge_Trig;
 			button_trig_state=LOW;
 			Button_state=0;
-			DEBUG_LED=0;
 		}
 		clr_PD;
 	}
@@ -93,23 +95,20 @@ void PinInterrupt_ISR (void) interrupt 7
 	if (testbit(PIF,3))	//USB PIN
 	{
 		clrbit(PIF,3);
-		Delay_1ms(3);
+		Delay_1ms(2);
 		if(charge_trig_state==LOW && P13==LOW){
 			Enable_BIT3_RasingEdge_Trig;
 			charge_trig_state=HIGH;
 			Charge_state=OFF;
+			Reset_audio=-1;
 			Reset_system=1;
-			DEBUG_LED=0;
-			Send_Data_To_UART0(0xcc);
 		}else if(charge_trig_state==HIGH && P13==HIGH){
 			Enable_BIT3_FallEdge_Trig;
 			charge_trig_state=LOW;
 			Charge_state=ON;
 			Reset_system=-1;
-			DEBUG_LED=1;
-			Send_Data_To_UART0(0xdd);
+			Reset_audio=1;
 		}
-		//Send_Data_To_UART0(0xcc);
 		clr_PD;
 	}
 	return;
@@ -117,42 +116,32 @@ void PinInterrupt_ISR (void) interrupt 7
 
 unsigned long wake_time=0;
 unsigned long timer_count=0;
-int Power_state=ON;
 
 /************************************************************************************************************
 *    TIMER 0 interrupt subroutine
 ************************************************************************************************************/
 void Timer0_ISR (void) interrupt 1          //interrupt address is 0x000B
 {
-		clr_TF0;
-		clr_TR0;                              		  //Stop Timer0
-        TL0 = LOBYTE(TIMER_DIV12_VALUE_40ms); 		//Find  define in "Function_define.h" "TIMER VALUE"
-        TH0 = HIBYTE(TIMER_DIV12_VALUE_40ms);
-		set_TR0;                              		  //Start Timer0
-		timer_count+=40;
-		if(timer_count >= 1000){
-			timer_count=0;
-			wake_time++;
-		}
-		//Send_Data_To_UART0(0xcc);
+	clr_TF0;
+	clr_TR0;                              		  //Stop Timer0
+    TL0 = LOBYTE(TIMER_DIV12_VALUE_40ms); 		//Find  define in "Function_define.h" "TIMER VALUE"
+    TH0 = HIBYTE(TIMER_DIV12_VALUE_40ms);
+	set_TR0;                              		  //Start Timer0
+	timer_count+=40;
+	if(timer_count >= 1000){
+		timer_count=0;
+		wake_time++;
+	}
 }
-
 void audio_power_on()
 {
-	int timeout=25;	//500ms for timeout
-	int chip_ready=-1;
-	
-	AUDIO_CTRL=LOW;
-
-	while(timeout-- && chip_ready==-1){
-		Delay_1ms(20);
-		chip_ready=Specify_Volume(28);
-	}
-	Delay_1ms(120);
-	Power_state=ON;
+	AUDIO_CTRL = LOW;
+	charge_type = Get_charge_type(16); //25*16=400ms for timeout
+	Send_Data_To_UART0(0xcc);
+	Send_Data_To_UART0(charge_type);
+	Power_state = ON;
 }
-
-void audio_power_off()
+void audio_power_off(int sleep_flag)
 {
 	int org_p06=P06;
 	int org_p07=P07;
@@ -177,8 +166,9 @@ void audio_power_off()
 	P12=0;
 	Power_state=OFF;
 	
-	//Delay_1ms(1000);
-	set_PD;					//go to sleep mode
+	if(sleep_flag==1){
+		set_PD;										//go to sleep mode
+	}
 	
 	P12=org_p12;
 	P12_Input_Mode;
@@ -186,11 +176,15 @@ void audio_power_off()
 	P04=org_p04;
 	P06=org_p06;
 	P07=org_p07;
+	P12=org_p12;
 	set_TR0;                                    //Timer0 run
-	Delay_1ms(2);
-	
 }
-
+void reboot_audio()
+{
+	audio_power_off(0);
+	Delay_1ms(10);
+	audio_power_on();
+}
  void ADC_Finish()
 {
     int ADC_Count=0;
@@ -258,17 +252,15 @@ void main (void)
 	Set_All_GPIO_Quasi_Mode;					// Define in Function_define.h
 	DEBUG_LED=0;
 	P01_PushPull_Mode;
-#if 1
 	AUDIO_CTRL=1;
-	Delay_1ms(300);
+	Delay_1ms(300);								//Delay 300ms in case download problem
 	InitialUART0_Timer1(9600);
-	Send_Data_To_UART0(0xaa);
 	Send_Data_To_UART0(0xaa);
 	Send_Data_To_UART0(0xaa);
 	set_CLOEN; 
 	audio_power_on();
-#endif
 
+/*-------------------------------Init Timer---------------------------------------------*/
 #if 1
 	TIMER0_MODE0_ENABLE;                        //Timer 0 and Timer 1 mode configuration
 	clr_T0M;
@@ -280,6 +272,7 @@ void main (void)
 	set_TR0;                                    //Timer0 run
 #endif
 
+/*-------------------------------Init Interrupts---------------------------------------------*/
 #if 1
 	//Switch detect
 	P17_Input_Mode;
@@ -305,29 +298,19 @@ void main (void)
 	set_EA;								// global enable bit
 
 #endif
+/*---------------------------------Main function-----------------------------------------------*/
 	init_LED();
 	Specify_Volume(SYS_VOLUME);
-	while(0){
-		audio_power_on();
-		Delay_1ms(1000);
-		Specify_Volume(SYS_VOLUME);
-		//Play_body_music();
-		Control_CMD(music_next, sizeof(music_next));
-		Delay_1ms(5000);
-		audio_power_off();
-		Delay_1ms(1000);
-	}
 	while(1){
 		//set_PD;					//powerdown here can be 145.8uA
 		if(Button_state==1 && Charge_state==OFF){
 			Button_state=-1;
+			Body_Music_Play=0;
 			if(Power_state==OFF){
 				audio_power_on();
 				Specify_Volume(SYS_VOLUME);
 			}
 			Play_head_music();
-			//Head_Music_Play=1;
-			Body_Music_Play=0;
 		}
 		if(Button_state==0 && Charge_state==OFF){
 			Button_state=-1;
@@ -373,33 +356,34 @@ void main (void)
 			set_IDL;
 		}
 		if(Reset_system==1 && Play_state==STOP){
-			Delay_1ms(500);				//Add delay 600ms, in case USB connection problem.
+			Delay_1ms(300);				//Add delay 300ms, in case USB connection problem.
 			if(Reset_system==1){
 				Reset_system=-1;
 				SW_Reset();
 			}
 		}
-
-		if(Charge_state==ON && Power_state==OFF){
-			wake_time = 0;
-			audio_power_on();
-			Specify_Volume(SYS_VOLUME);
+		if(Reset_audio==1 && Play_state==STOP){
+			Delay_1ms(300);				//Add delay 300ms, in case USB connection problem.
+			if(Reset_audio==1){
+				Reset_audio=-1;
+				reboot_audio();			//reboot audio, to get the charger type.
+			}
 		}
-		if(Play_state==STOP && Charge_state==OFF && wake_time > MINIT)
+		if(Play_state==STOP && Charge_state==OFF && wake_time > SECOND*30)
 		{
 			Send_Data_To_UART0(0xaa);
-			audio_power_off();
+			audio_power_off(1);
 		}
-		if(Charge_state==ON && wake_time > MINIT*20)	//power off audio, to make sure device can charge to full.
+		if(Charge_state==ON && charge_type==TYPE_USB && wake_time > MINIT*20)	//power off audio, to make sure device can charge to full.
 		{
 			Send_Data_To_UART0(0xbb);
-			audio_power_off();
+			audio_power_off(1);
 		}
-#if 0
-		if(Play_state==STOP && Head_Music_Play==1){
-			Head_Music_Play=0;
+		if(Charge_state==ON && charge_type!=TYPE_USB && wake_time > MINIT)	//power off audio, to make sure device can charge to full.
+		{
+			Send_Data_To_UART0(0xcc);
+			audio_power_off(1);
 		}
-#endif
 
 	}
 }
