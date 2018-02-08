@@ -1,4 +1,4 @@
-C51 COMPILER V9.53.0.0   COMMON                                                            02/06/2018 20:48:25 PAGE 1   
+C51 COMPILER V9.53.0.0   COMMON                                                            02/08/2018 14:56:39 PAGE 1   
 
 
 C51 COMPILER V9.53.0.0, COMPILATION OF MODULE COMMON
@@ -62,7 +62,7 @@ line level    source
   45          //---------------------------------------------------------------
   46          void InitialUART0_Timer3(UINT32 u32Baudrate) //use timer3 as Baudrate generator
   47          {
-C51 COMPILER V9.53.0.0   COMMON                                                            02/06/2018 20:48:25 PAGE 2   
+C51 COMPILER V9.53.0.0   COMMON                                                            02/08/2018 14:56:39 PAGE 2   
 
   48   1          P06_Quasi_Mode;   //Setting UART pin as Quasi mode for transmit
   49   1          P07_Quasi_Mode;   //Setting UART pin as Quasi mode for transmit 
@@ -126,7 +126,7 @@ line level    source
  107          
  108          UINT8 Receive_Data_From_UART1(void)
  109          {
-C51 COMPILER V9.53.0.0   COMMON                                                            02/06/2018 20:48:25 PAGE 3   
+C51 COMPILER V9.53.0.0   COMMON                                                            02/08/2018 14:56:39 PAGE 3   
 
  110   1          UINT8 c;
  111   1          
