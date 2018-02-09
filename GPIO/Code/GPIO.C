@@ -72,6 +72,7 @@ void PinInterrupt_ISR (void) interrupt 7
 	if (testbit(PIF,7))	//SWITCH PIN
 	{
 		clrbit(PIF,7);
+		clr_EPI;							//disable interrupt
 		Delay_1ms(1);
 		if(button_trig_state==LOW && P17==LOW){
 			Enable_BIT7_RasingEdge_Trig;
@@ -86,12 +87,14 @@ void PinInterrupt_ISR (void) interrupt 7
 			DEBUG_LED=0;
 			clr_PD;
 		}
+		set_EPI;							//enable intterrupt
 	}
 	if (testbit(PIF,2))	//BUSY PIN
 	{
 		clrbit(PIF,2);
 		if(Power_state==OFF)
 			return;
+		clr_EPI;							//disable interrupt
 		Delay_1ms(3);	
 		if(play_trig_state==LOW && P12==LOW){
 			Enable_BIT2_RasingEdge_Trig;
@@ -104,11 +107,13 @@ void PinInterrupt_ISR (void) interrupt 7
 			Play_state=STOP;
 			DEBUG_LED=0;
 		}
+		set_EPI;							//enable intterrupt
 		//clr_PD;
 	}
 	if (testbit(PIF,3))	//USB PIN
 	{
 		clrbit(PIF,3);
+		clr_EPI;							//disable interrupt
 		Delay_1ms(2);
 		if(charge_trig_state==LOW && P13==LOW){
 			Enable_BIT3_RasingEdge_Trig;
@@ -125,6 +130,7 @@ void PinInterrupt_ISR (void) interrupt 7
 			Reset_audio=1;
 			clr_PD;
 		}
+		set_EPI;							//enable intterrupt
 	}
 }
 
