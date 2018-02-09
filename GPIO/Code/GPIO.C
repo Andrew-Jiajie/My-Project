@@ -19,12 +19,18 @@
 #include "Common.h"
 #include "Delay.h"
 #include "Music_control.h"
+
+#define USE_LED 0
+
+#if USE_LED
 #include "FFT.h"
+#endif
 
 #define DEBUG 0
 #define HIGH 1
 #define LOW 0
 
+#define WAITING 2
 #define PLAYING 1
 #define STOP 0
 #define ON 1
@@ -33,6 +39,9 @@
 #define SOURCE_FLASH 3
 #define MINIT 	60
 #define SECOND 1
+#define SW_PRESS 1
+#define SW_RELEASE 2
+#define SW_NONE 0
 
 #define SYS_VOLUME 35
 #define AUDIO_CTRL P01
@@ -51,7 +60,7 @@ int button_trig_state=HIGH;
 int play_trig_state=HIGH;
 int charge_trig_state=HIGH;
 
-int Button_state=-1;
+int Button_state=SW_NONE;
 int Play_state=STOP;
 int Charge_state=OFF;
 int Reset_system=-1;
@@ -63,16 +72,18 @@ void PinInterrupt_ISR (void) interrupt 7
 	if (testbit(PIF,7))	//SWITCH PIN
 	{
 		clrbit(PIF,7);
-		Delay_1ms(5);
+		Delay_1ms(1);
 		if(button_trig_state==LOW && P17==LOW){
 			Enable_BIT7_RasingEdge_Trig;
 			button_trig_state=HIGH;
-			Button_state=1;
+			Button_state=SW_PRESS;
+			DEBUG_LED=1;
 			clr_PD;
 		}else if(button_trig_state==HIGH && P17==HIGH){
 			Enable_BIT7_FallEdge_Trig;
 			button_trig_state=LOW;
-			Button_state=0;
+			Button_state=SW_RELEASE;
+			DEBUG_LED=0;
 			clr_PD;
 		}
 	}
@@ -151,6 +162,7 @@ void audio_power_off(int sleep_flag)
 	int org_p03=P03;
 	int org_p04=P04;
 	int org_p12=P12;
+clr_EPI;
 	clr_TR0;                              		  //Stop Timer0
 	wake_time=0;
 	Power_state=OFF;								//Must set to OFF before power down, or will trigger.
@@ -168,9 +180,11 @@ void audio_power_off(int sleep_flag)
 	P06=0;
 	P07=0;
 	P12=0;
+set_EPI;
 	if(sleep_flag==1){
 		set_PD;										//go to sleep mode
 	}
+clr_EPI;
 	P12=org_p12;
 	P12_Input_Mode;
 	P03=org_p03;
@@ -179,6 +193,7 @@ void audio_power_off(int sleep_flag)
 	P07=org_p07;
 	P12=org_p12;
 	set_TR0;                                    //Timer0 run
+set_EPI;
 }
 void reboot_audio()
 {
@@ -186,18 +201,6 @@ void reboot_audio()
 	Delay_1ms(10);
 	audio_power_on();
 }
- void ADC_Finish()
-{
-    int ADC_Count=0;
-	Enable_ADC_AIN5;
-    while(ADC_Count<=64)
-    {
-      Fft_Real[LIST_TAB[ADC_Count]]=get_adc()-256; //按LIST_TAB表里的顺序，进行存储 采样值,,
-      //  ADC_CONTR = ADC_POWER | ADC_SPEEDHH| ADC_START | channel;   // 为了采集负电压，采用 偏置采集。电压提高到1/2 vcc，，所以要减去256
-      ADC_Count++;
-    }
-}
-
 // led num range is 0~1024
 void LED_R(int num){
 	PWM1H = HIBYTE(num);				
@@ -234,6 +237,7 @@ void init_LED(){
 }
 //-----------------------------------------------------------------------------------
 
+#if USE_LED
 int get_adc(void)
 {
 	clr_ADCF;
@@ -241,6 +245,18 @@ int get_adc(void)
 	while(ADCF == 0);
   	return (int)(ADCRH<<2) + (int)((ADCRL&0x0f)>>2);//(((int)ADCRH)<<4+ADCRL&0x0f);
 }
+ void ADC_Finish()
+{
+    int ADC_Count=0;
+	Enable_ADC_AIN5;
+    while(ADC_Count<=64)
+    {
+      Fft_Real[LIST_TAB[ADC_Count]]=get_adc()-256; //按LIST_TAB表里的顺序，进行存储 采样值,,
+      //  ADC_CONTR = ADC_POWER | ADC_SPEEDHH| ADC_START | channel;   // 为了采集负电压，采用 偏置采集。电压提高到1/2 vcc，，所以要减去256
+      ADC_Count++;
+    }
+}
+#endif
 
 int Head_Music_Play=0;
 int Body_Music_Play=0;
@@ -295,8 +311,7 @@ void main (void)
 
 	Enable_INT_Port1;
 	set_EPI;							// Enable pin interrupt
-	set_EX0;
-	set_EA;								// global enable bit
+	//set_EA;								// global enable bit
 
 #endif
 /*---------------------------------Main function-----------------------------------------------*/
@@ -304,26 +319,30 @@ void main (void)
 	Specify_Volume(SYS_VOLUME);
 	while(1){
 		//set_PD;					//powerdown here can be 145.8uA
-		if(Button_state==1 && Charge_state==OFF){
-			Button_state=-1;
-			Body_Music_Play=0;
+		if(Button_state==SW_PRESS && Charge_state==OFF){
+			Button_state=SW_NONE;
+			Body_Music_Play=STOP;
 			if(Power_state==OFF){
 				audio_power_on();
 				Specify_Volume(SYS_VOLUME);
 			}
 			Play_head_music();
 		}
-		if(Button_state==0 && Charge_state==OFF){
-			Button_state=-1;
-			Body_Music_Play=1;
+		if(Button_state==SW_RELEASE && Charge_state==OFF && Body_Music_Play==STOP){
+			Button_state=SW_NONE;
+			Body_Music_Play=WAITING;
 		}
-		if(Play_state==STOP && Body_Music_Play==1){
-			Body_Music_Play=0;
+		if(Play_state==STOP && Body_Music_Play==WAITING){
 			if(Power_state==ON){
 				Play_body_music();
+				Delay_1ms(10);
+				if(Play_state==PLAYING){
+					Body_Music_Play=PLAYING;
+				}
 			}
 		}
 		if(Play_state==PLAYING){
+#if USE_LED
 			int i=0;
 			int red=0, green=0, blue=0;
 			set_PWMRUN;
@@ -344,11 +363,10 @@ void main (void)
 			LED_R(red);
 			LED_G(green);
 			LED_B(blue);
+#else
+			set_IDL;				//save power, if LED do not turn on
+#endif
 		    wake_time = 0;
-			//set_IDL;
-		}
-		if(Play_state==PLAYING && Charge_state==ON){
-			Stop_music();
 		}
 		if(Play_state==STOP){
 			LED_R(0);
@@ -356,6 +374,12 @@ void main (void)
 			LED_B(0);
 			set_IDL;
 		}
+
+		DEBUG_LED=1;
+		Delay_1ms(10);
+		DEBUG_LED=0;
+		Delay_1ms(20);
+		
 		if(Reset_system==1){
 			Delay_1ms(300);				//Add delay 300ms, in case USB connection problem.
 			if(Reset_system==1){
@@ -369,6 +393,9 @@ void main (void)
 				Reset_audio=-1;
 				reboot_audio();			//reboot audio, to get the charger type.
 			}
+		}
+		if(Play_state==PLAYING && Charge_state==ON){
+			Stop_music();
 		}
 		if(Play_state==STOP && Charge_state==OFF && wake_time > SECOND*30)
 		{
