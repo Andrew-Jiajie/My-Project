@@ -60,9 +60,9 @@ int button_trig_state=HIGH;
 int play_trig_state=HIGH;
 int charge_trig_state=HIGH;
 
-int Button_state=SW_NONE;
 int Play_state=STOP;
 int Charge_state=OFF;
+int Button_state=SW_NONE;
 int Reset_system=-1;
 int Reset_audio=-1;
 int Power_state=ON;
@@ -266,6 +266,8 @@ int get_adc(void)
 
 int Head_Music_Play=0;
 int Body_Music_Play=0;
+int Body_play_fail=0;
+int Head_play_fail=0;
 void main (void) 
 {
 	int music_num=1;
@@ -333,6 +335,13 @@ void main (void)
 				Specify_Volume(SYS_VOLUME);
 			}
 			Play_head_music();
+			Delay_1ms(5);
+			if(Play_state==PLAYING){
+				Head_play_fail=0;
+				Body_play_fail=0;
+			}else{
+				Head_play_fail++;
+			}
 		}
 		if(Button_state==SW_RELEASE && Charge_state==OFF && Body_Music_Play==STOP){
 			Button_state=SW_NONE;
@@ -341,11 +350,18 @@ void main (void)
 		if(Play_state==STOP && Body_Music_Play==WAITING){
 			if(Power_state==ON){
 				Play_body_music();
-				Delay_1ms(10);
+				Delay_1ms(5);
 				if(Play_state==PLAYING){
 					Body_Music_Play=PLAYING;
+					Body_play_fail=0;
+					Head_play_fail=0;
+				}else{
+					Body_play_fail++;
 				}
 			}
+		}
+		if(Body_play_fail>2 && Head_play_fail>2){
+			Reset_system=1;
 		}
 		if(Play_state==PLAYING){
 #if USE_LED
