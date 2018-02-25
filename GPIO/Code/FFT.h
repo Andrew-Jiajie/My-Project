@@ -18,7 +18,6 @@ char COS_TAB[64] = { 0x7f, 0x7e, 0x7c, 0x79, 0x75, 0x70, 0x69, 0x62,
 0x00, 0x0c, 0x18, 0x24, 0x30, 0x3b, 0x46, 0x50, 
 0x59, 0x62, 0x69, 0x70, 0x75, 0x79, 0x7c, 0x7e, 
  };
-
 //采样存储序列表
 char LIST_TAB[64] = { 0, 32, 16, 48, 8, 40, 24, 56,
 4, 36, 20, 52, 12, 44, 28, 60,
@@ -30,20 +29,20 @@ char LIST_TAB[64] = { 0, 32, 16, 48, 8, 40, 24, 56,
 7, 39, 23, 55, 15, 47, 31, 63
 };
 
-uchar COUNT=15,COUNT1=0,ADC_Count=0,LINE=15,G,T;
-uchar i,j,k,b,p;                 
-int Temp_Real,Temp_Imag,temp;                // 中间临时变量  
-uint TEMP1;
-uchar PWM;  
 int Fft_Real[64]={0XFF}; 
 int Fft_Image[64];               // fft的虚部 
-uchar LED_TAB2[32];        //记录 漂浮物 是否需要 停顿一下
+//uchar LED_TAB2[32];        //记录 漂浮物 是否需要 停顿一下
 uchar LED_TAB[32];       //记录红色柱状 
-uchar LED_TAB1[32];        //记录 漂浮点
+//uchar LED_TAB1[32];        //记录 漂浮点
 
 void FFT()
-{     
-  //uchar x;              
+{
+	uchar i,j,k,b,p;
+	uchar COUNT=15,COUNT1=0;
+               
+	int Temp_Real,Temp_Imag,temp;                // 中间临时变量  
+	uint TEMP1; 
+	
     for( i=1; i<=6; i++)                            /* for(1) */
     { 
         b=1;
@@ -56,8 +55,8 @@ void FFT()
             for( k=j; k<64; k=k+2*b)                /* for (3) 基二fft */
             { 
                 Temp_Real = Fft_Real[k]; 
-        Temp_Imag = Fft_Image[k]; 
-        temp = Fft_Real[k+b];
+        		Temp_Imag = Fft_Image[k]; 
+        		temp = Fft_Real[k+b];
                 Fft_Real[k] = Fft_Real[k] + ((Fft_Real[k+b]*COS_TAB[p])>>7) + ((Fft_Image[k+b]*SIN_TAB[p])>>7);
                 Fft_Image[k] = Fft_Image[k] - ((Fft_Real[k+b]*SIN_TAB[p])>>7) + ((Fft_Image[k+b]*COS_TAB[p])>>7);
                 Fft_Real[k+b] = Temp_Real - ((Fft_Real[k+b]*COS_TAB[p])>>7) - ((Fft_Image[k+b]*SIN_TAB[p])>>7);
@@ -174,11 +173,13 @@ void FFT()
   
       //if(TEMP1>(LED_TAB[j]))
       LED_TAB[j]=TEMP1;        
+#if 0
         if(TEMP1>(LED_TAB1[j]))
         {   
-      LED_TAB1[j]=TEMP1;
+			LED_TAB1[j]=TEMP1;
             LED_TAB2[j]=7;  //12                                              //提顿速度=12
         }
+#endif
   }
   #endif
 }
