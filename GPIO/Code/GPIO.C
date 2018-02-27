@@ -20,14 +20,12 @@
 #include "Delay.h"
 #include "Music_control.h"
 
-#define USE_LED 1
+#define USE_LED 0
 
 #if USE_LED
 #include "FFT.h"
 #endif
 
-
-#define DEBUG 0
 #define HIGH 1
 #define LOW 0
 
@@ -36,8 +34,6 @@
 #define STOP 0
 #define ON 1
 #define OFF 0
-#define SOURCE_TF 2
-#define SOURCE_FLASH 3
 #define MINIT 	60
 #define SECOND 1
 #define SW_PRESS 1
@@ -67,7 +63,7 @@ uchar Button_state=SW_NONE;
 uchar Reset_system=0;
 uchar Reset_audio=0;
 uchar Power_state=OFF;
-uchar charge_type=TYPE_NONE;
+uchar Charge_type=TYPE_NONE;
 uchar Body_Music_Play=STOP;
 uchar Body_play_fail=0;
 uchar Head_play_fail=0;
@@ -108,12 +104,10 @@ void PinInterrupt_ISR (void) interrupt 7
 			Enable_BIT2_RasingEdge_Trig;
 			play_trig_state=HIGH;
 			Play_state=PLAYING;
-			DEBUG_LED=1;
 		}else if(play_trig_state==HIGH && P12==HIGH){
 			Enable_BIT2_FallEdge_Trig;
 			play_trig_state=LOW;
 			Play_state=STOP;
-			DEBUG_LED=0;
 		}
 		set_EPI;							//enable intterrupt
 		//clr_PD;
@@ -161,10 +155,10 @@ void Timer0_ISR (void) interrupt 1          //interrupt address is 0x000B
 void audio_power_on()
 {
 	AUDIO_CTRL = LOW;
-	charge_type = Get_charge_type(16); //25*16=400ms for timeout
+	Charge_type = Get_charge_type(16); //25*16=400ms for timeout
 	Power_state = ON;
 	Send_Data_To_UART0(0xcc);
-	Send_Data_To_UART0(charge_type);
+	Send_Data_To_UART0(Charge_type);
 }
 void audio_power_off(uchar sleep_flag)
 {
@@ -394,15 +388,9 @@ void main (void)
 			LED_B(0);
 			set_IDL;
 		}
+
 		DEBUG_LED=1;			//let LED shining to detect if system active.
-		if(Charge_state==ON){
-			LED_R(1000);
-		}
-		if(Power_state==ON && 0){
-			LED_G(1000);
-		}
 		Delay_1ms(10);
-		LED_G(0);
 		DEBUG_LED=0;
 		Delay_1ms(20);
 		
@@ -423,17 +411,17 @@ void main (void)
 		if(Play_state==PLAYING && Charge_state==ON){
 			Stop_music();
 		}
-		if(Play_state==STOP && Charge_state==OFF && wake_time > SECOND*5)
+		if(Play_state==STOP && Charge_state==OFF && wake_time > SECOND*8)
 		{
 			//Send_Data_To_UART0(0xaa);
 			audio_power_off(1);
 		}
-		if(Charge_state==ON && charge_type==TYPE_USB && wake_time > MINIT*20)	//when USB state, power off audio after 20min, to make sure device can charge to full.
+		if(Charge_state==ON && Charge_type==TYPE_USB && wake_time > MINIT*20)	//when USB state, power off audio after 20min, to make sure device can charge to full.
 		{
 			//Send_Data_To_UART0(0xbb);
 			audio_power_off(1);
 		}
-		if(Charge_state==ON && charge_type!=TYPE_USB && wake_time > MINIT*20)	//when AC state, power off audio after 1min,power off audio, to make sure device can charge to full.
+		if(Charge_state==ON && Charge_type!=TYPE_USB && wake_time > MINIT*20)	//when AC state, power off audio after 1min,power off audio, to make sure device can charge to full.
 		{
 			//Send_Data_To_UART0(0xcc);
 			audio_power_off(1);
