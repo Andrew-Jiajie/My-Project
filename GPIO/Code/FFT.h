@@ -32,8 +32,26 @@ char LIST_TAB[64] = { 0, 32, 16, 48, 8, 40, 24, 56,
 int Fft_Real[64]={0XFF}; 
 int Fft_Image[64];               // fft的虚部 
 //uchar LED_TAB2[32];        //记录 漂浮物 是否需要 停顿一下
-uchar LED_TAB[32];       //记录红色柱状 
+int LED_TAB[32];       //记录红色柱状 
 //uchar LED_TAB1[32];        //记录 漂浮点
+
+float my_sqrt(float number) {
+    float new_guess;
+    float last_guess;
+ 
+    if (number < 0) {
+        //printf("Cannot compute the square root of a negative number!\n");
+        return -1;
+    }
+    if(number==0) return 0;
+    new_guess = 1;
+    do {
+        last_guess = new_guess;
+        new_guess = (last_guess + number / last_guess) / 2;
+    } while (new_guess != last_guess);
+ 
+    return new_guess;
+}
 
 void FFT()
 {
@@ -102,77 +120,84 @@ void FFT()
 
   }       
 #else
-    for(j=0;j<17;j++) 
+    for(j=0;j<32;j++) 
   {
     TEMP1=((((Fft_Real[j]* Fft_Real[j]))+((Fft_Image[j]*Fft_Image[j]))));//求功率
-  
-        if(TEMP1<6)
-      TEMP1=0;
-        else if(TEMP1<10)
-      TEMP1=1;
-        else if(TEMP1<16)
-      TEMP1=2;
-        else if(TEMP1<25)
-      TEMP1=3;
-        else if(TEMP1<36)
-      TEMP1=4;
-        else if(TEMP1<49)
-      TEMP1=5;
-        else if(TEMP1<55)
-      TEMP1=6;
-        else if(TEMP1<60)
-      TEMP1=7;
-        else if(TEMP1<65)
-      TEMP1=8;
-        else if(TEMP1<70)
-      TEMP1=9;
-        else if(TEMP1<75)
-      TEMP1=10;
-        else if(TEMP1<80)
-      TEMP1=11;
-        else if(TEMP1<96)
-      TEMP1=12;
-        else if(TEMP1<125)
-      TEMP1=13;
-        else if(TEMP1<156)
-      TEMP1=14;
-        else if(TEMP1<189)
-      TEMP1=15;
-        else if(TEMP1<224)
-      TEMP1=16;
-        else if(TEMP1<261)
-      TEMP1=17;
-        else if(TEMP1<300)
-      TEMP1=18;
-        else if(TEMP1<341)
-      TEMP1=19;
-        else if(TEMP1<384)
-      TEMP1=20;
-        else if(TEMP1<429)
-      TEMP1=21;
-        else if(TEMP1<476)
-      TEMP1=22;
-        else if(TEMP1<525)
-      TEMP1=23 ;
-        else if(TEMP1<576)
-      TEMP1=24;
-        else if(TEMP1<629)
-      TEMP1=25;
-        else if(TEMP1<684)
-      TEMP1=26;
-        else if(TEMP1<741)
-      TEMP1=27;
-        else if(TEMP1<800)
-      TEMP1=28;
-        else if(TEMP1<861)
-      TEMP1=29;
-        else if(TEMP1<1024)
-      TEMP1=30;
-        else 
-      TEMP1=31;
-  
+#if 0
+	if(TEMP1>1024)
+		TEMP1=1024;
+	if((TEMP1)<4)
+		LED_TAB[j]=0;
+	else
+		LED_TAB[j]=my_sqrt(TEMP1)-1;
+#else	
+    if((TEMP1)<4)
+		TEMP1=0;
+    else if(TEMP1<9)
+		TEMP1=1;
+    else if(TEMP1<16)
+		TEMP1=2;
+    else if(TEMP1<25)
+		TEMP1=3;
+    else if(TEMP1<36)
+		TEMP1=4;
+    else if(TEMP1<49)
+		TEMP1=5;
+    else if(TEMP1<55)
+		TEMP1=6;
+    else if(TEMP1<60)
+		TEMP1=7;
+    else if(TEMP1<65)
+		TEMP1=8;
+    else if(TEMP1<70)
+		TEMP1=9;
+    else if(TEMP1<75)
+		TEMP1=10;
+    else if(TEMP1<80)
+		TEMP1=11;
+    else if(TEMP1<96)
+		TEMP1=12;
+    else if(TEMP1<125)
+		TEMP1=13;
+    else if(TEMP1<156)
+		TEMP1=14;
+    else if(TEMP1<189)
+		TEMP1=15;
+    else if(TEMP1<224)
+		TEMP1=16;
+    else if(TEMP1<261)
+		TEMP1=17;
+    else if(TEMP1<300)
+		TEMP1=18;
+    else if(TEMP1<341)
+		TEMP1=19;
+    else if(TEMP1<384)
+		TEMP1=20;
+    else if(TEMP1<429)
+		TEMP1=21;
+    else if(TEMP1<476)
+		TEMP1=22;
+    else if(TEMP1<525)
+		TEMP1=23 ;
+    else if(TEMP1<576)
+		TEMP1=24;
+    else if(TEMP1<629)
+		TEMP1=25;
+    else if(TEMP1<684)
+		TEMP1=26;
+    else if(TEMP1<741)
+		TEMP1=27;
+    else if(TEMP1<800)
+		TEMP1=28;
+    else if(TEMP1<861)
+		TEMP1=29;
+    else if(TEMP1<1024)
+		TEMP1=30;
+    else 
+		TEMP1=31;  
       //if(TEMP1>(LED_TAB[j]))
-      LED_TAB[j]=TEMP1;        
+		LED_TAB[j]=TEMP1;  
+#endif      
 #if 0
         if(TEMP1>(LED_TAB1[j]))
         {   

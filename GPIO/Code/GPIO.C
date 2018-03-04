@@ -20,7 +20,7 @@
 #include "Delay.h"
 #include "Music_control.h"
 
-#define USE_LED 0
+#define USE_LED 1
 
 #if USE_LED
 #include "FFT.h"
@@ -206,20 +206,26 @@ void reboot_audio()
 	Delay_1ms(10);
 	audio_power_on();
 }
+#define RED_P 44
+#define GREEN_P 46
+#define BLUE_P 44
 // led num range is 0~1024
 void LED_R(int num){
+	num = num*RED_P;
 	PWM1H = HIBYTE(num);				
 	PWM1L = LOBYTE(num);
 	PWM1_OUTPUT_INVERSE;
 	set_LOAD;
 }
 void LED_G(int num){
+	num = num*GREEN_P;
 	PWM3H = HIBYTE(num);				
 	PWM3L = LOBYTE(num);
 	PWM3_OUTPUT_INVERSE;
 	set_LOAD;
 }
 void LED_B(int num){
+	num = num*BLUE_P;
 	PWM2H = HIBYTE(num);				
 	PWM2L = LOBYTE(num);
 	PWM2_OUTPUT_INVERSE;
@@ -243,6 +249,7 @@ void init_LED(){
 //-----------------------------------------------------------------------------------
 
 #if USE_LED
+unsigned int ADC_Count=0;
 int get_adc(void)
 {
 	clr_ADCF;
@@ -252,17 +259,78 @@ int get_adc(void)
 }
  void ADC_Finish()
 {
-    uchar ADC_Count=0;
+    uchar ADC_Count=0, i=0;
 	Enable_ADC_AIN5;
     while(ADC_Count<=64)
     {
-      Fft_Real[LIST_TAB[ADC_Count]]=get_adc()-256; //按LIST_TAB表里的顺序，进行存储 采样值,,
+      Fft_Real[LIST_TAB[ADC_Count]]=(get_adc()>>2)-256; //按LIST_TAB表里的顺序，进行存储 采样值,,
       //  ADC_CONTR = ADC_POWER | ADC_SPEEDHH| ADC_START | channel;   // 为了采集负电压，采用 偏置采集。电压提高到1/2 vcc，，所以要减去256
       ADC_Count++;
+	  for(i=0; i<10; i++){}		//Dealy to make sure it reache 20K HZ to sample music
     }
 }
 #endif
 
+int Send_num(int num){
+	char CharToSend[10];
+	uchar i=0,j=9;
+	uchar negative=0;
+	if(num<0){
+		negative=1;
+		num=-num;
+	}
+	if(num==0)
+		CharToSend[j--]='0';
+	while(num>0){
+		uchar aa=num%10;
+		CharToSend[j--]='0'+aa;
+		num=num/10;
+	}
+	if(negative==1){
+		CharToSend[j--]='-';
+	}
+	for(i=j+1; i<10; i++){
+		Send_Data_To_UART1(CharToSend[i]);
+	}
+}
+
+
+#if 0
+void ADC_ISR (void) interrupt 11
+{
+	int adc_data;
+    clr_ADCF;                               //clear ADC interrupt flag
+	adc_data=(int)(ADCRH<<2) + (int)((ADCRL&0x0f)>>2);
+	ADC_Count++;
+	Send_num(ADC_Count);
+}
+#endif
+void ADC_TEST(UINT32 u32CNT)
+{
+	int i=0;
+	Enable_ADC_AIN5;
+	set_EADC;
+    clr_T0M;                                		//T0M=0, Timer0 Clock = Fsys/12
+    TMOD |= 0x01;                           		//Timer0 is 16-bit mode
+    set_TR0;                              		  //Start Timer0
+    while (u32CNT != 0)
+    {
+        TL0 = LOBYTE(TIMER_DIV12_VALUE_10ms); 		//Find  define in "Function_define.h" "TIMER VALUE"
+        TH0 = HIBYTE(TIMER_DIV12_VALUE_10ms);
+        while (TF0 != 1){
+	        Fft_Real[LIST_TAB[ADC_Count]]=get_adc()-256; //按LIST_TAB表里的顺序，进行存储 采样值,,
+	        //  ADC_CONTR = ADC_POWER | ADC_SPEEDHH| ADC_START | channel;   // 为了采集负电压，采用 偏置采集。电压提高到1/2 vcc，，所以要减去256
+	        ADC_Count++;
+	  	  for(i=0; i<13; i++){}		//Dealy to make sure it reache 20K HZ to sample music
+        };                   		//Check Timer0 Time-Out Flag
+        clr_TF0;
+        u32CNT --;
+    }
+	Send_num(ADC_Count);
+	ADC_Count=0;
+    clr_TR0;                              		  //Stop Timer0
+	clr_EADC;
+}
 
 void main (void) 
 {
@@ -273,11 +341,11 @@ void main (void)
 	AUDIO_CTRL=1;
 	Delay_1ms(300);								//Delay 300ms in case download problem
 	InitialUART0_Timer1(9600);
+	InitialUART1_Timer3(115200);
 	Send_Data_To_UART0(0xaa);
 	Send_Data_To_UART0(0xaa);
 	set_CLOEN; 
-	audio_power_on();
-
+	audio_power_on();	
 /*-------------------------------Init Timer---------------------------------------------*/
 #if 1
 	TIMER0_MODE0_ENABLE;                        //Timer 0 and Timer 1 mode configuration
@@ -358,22 +426,50 @@ void main (void)
 		}
 		if(Play_state==PLAYING){
 #if USE_LED
+			uchar i=0, j=0;
 			int red=0, green=0, blue=0;
+			char CharToSend[60];
 			set_PWMRUN;
 			ADC_Finish();
 			FFT();
 #if 0
-		    for(i=0; i<16; i++){
-		      Send_Data_To_UART0(LED_TAB[i]);
+		    for(i=0,j=0; i<32; i++){
+				Send_num(LED_TAB[i]);
+				Send_Data_To_UART1(' ');
+				/*
+				uchar aa=0, bb=0;
+				if(LED_TAB[i]<10 && LED_TAB[i]>=0){
+					CharToSend[j++]='0';
+					CharToSend[j++]='0'+LED_TAB[i];
+					CharToSend[j++]=' ';
+				}else if(LED_TAB[i]>=10){
+					aa=LED_TAB[i]/10;
+					bb=LED_TAB[i]%10;
+					CharToSend[j++]='0'+aa;
+					CharToSend[j++]='0'+bb;
+					CharToSend[j++]=' ';
+				}*/
 		    }
-			Send_Data_To_UART0('\n');
+			/*
+			for(i=0; i<j; i++){
+				Send_Data_To_UART1(CharToSend[i]);
+			}
+			*/
+			Send_Data_To_UART1('\n');
 #endif
 			red=LED_TAB[1]+LED_TAB[2]+LED_TAB[3]+LED_TAB[4]+LED_TAB[5];
 			green=LED_TAB[6]+LED_TAB[7]+LED_TAB[8]+LED_TAB[9]+LED_TAB[10];
 			blue=LED_TAB[11]+LED_TAB[12]+LED_TAB[13]+LED_TAB[14]+LED_TAB[15];
-			red=red*2;
-			green=green*2;
-			green=green*2;
+
+			red=LED_TAB[1];
+			green=LED_TAB[23];
+			blue=LED_TAB[27];
+			//red=red*35;
+			//green=green*35;
+			//green=green*2;
+			
+			//red>green ? (red>blue? LED_R(red):LED_B(blue)):(green>blue? LED_G(green):LED_B(blue));
+			//LED_TAB[23]>LED_TAB[27]? LED_G(green):LED_B(blue);
 			LED_R(red);
 			LED_G(green);
 			LED_B(blue);

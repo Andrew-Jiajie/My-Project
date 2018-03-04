@@ -76,16 +76,6 @@
         <IsCurrentTarget>1</IsCurrentTarget>
       </OPTFL>
       <CpuCode>0</CpuCode>
-      <DllOpt>
-        <SimDllName>S8051.DLL</SimDllName>
-        <SimDllArguments></SimDllArguments>
-        <SimDlgDllName>DP51.DLL</SimDlgDllName>
-        <SimDlgDllArguments></SimDlgDllArguments>
-        <TargetDllName>S8051.DLL</TargetDllName>
-        <TargetDllArguments></TargetDllArguments>
-        <TargetDlgDllName>TP51.DLL</TargetDlgDllName>
-        <TargetDlgDllArguments></TargetDlgDllArguments>
-      </DllOpt>
       <DebugOpt>
         <uSim>0</uSim>
         <uTrg>1</uTrg>
@@ -104,6 +94,9 @@
         <tRfunc>0</tRfunc>
         <tRbox>1</tRbox>
         <tRtrace>0</tRtrace>
+        <sRSysVw>1</sRSysVw>
+        <tRSysVw>1</tRSysVw>
+        <tPdscDbg>1</tPdscDbg>
         <sRunDeb>0</sRunDeb>
         <sLrtime>0</sLrtime>
         <nTsel>9</nTsel>
@@ -166,10 +159,7 @@
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>28</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>3</TopLine>
-      <CurrentLine>18</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>.\Code\ADC.C</PathWithFileName>
       <FilenameWithoutPath>ADC.C</FilenameWithoutPath>
@@ -190,10 +180,7 @@
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>0</TopLine>
-      <CurrentLine>0</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\Common\Common.c</PathWithFileName>
       <FilenameWithoutPath>Common.c</FilenameWithoutPath>
@@ -214,10 +201,7 @@
       <FileType>2</FileType>
       <tvExp>0</tvExp>
       <Focus>0</Focus>
-      <ColumnNumber>0</ColumnNumber>
       <tvExpOptDlg>0</tvExpOptDlg>
-      <TopLine>0</TopLine>
-      <CurrentLine>0</CurrentLine>
       <bDave2>0</bDave2>
       <PathWithFileName>..\..\Startup\STARTUP.A51</PathWithFileName>
       <FilenameWithoutPath>STARTUP.A51</FilenameWithoutPath>
