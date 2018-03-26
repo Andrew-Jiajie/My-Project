@@ -206,11 +206,25 @@ void reboot_audio()
 	Delay_1ms(10);
 	audio_power_on();
 }
-#define RED_P 44
-#define GREEN_P 46
-#define BLUE_P 44
+#define RED_P 50//50
+#define GREEN_P 50//38
+#define BLUE_P 50//38
+#define FADE_SPEED 7
+int red_record=0;
+int green_record=0;
+int blue_record=0;
+
 // led num range is 0~1024
 void LED_R(int num){
+	if(num==0){
+		red_record=0;
+	}
+	if(red_record>num){
+		red_record-=FADE_SPEED;
+		num = red_record;
+	}else{
+		red_record=num;
+	}
 	num = num*RED_P;
 	PWM1H = HIBYTE(num);				
 	PWM1L = LOBYTE(num);
@@ -218,6 +232,15 @@ void LED_R(int num){
 	set_LOAD;
 }
 void LED_G(int num){
+	if(num==0){
+		green_record=0;
+	}
+	if(green_record>num){
+		green_record-=FADE_SPEED;
+		num = green_record;
+	}else{
+		green_record=num;
+	}
 	num = num*GREEN_P;
 	PWM3H = HIBYTE(num);				
 	PWM3L = LOBYTE(num);
@@ -225,6 +248,15 @@ void LED_G(int num){
 	set_LOAD;
 }
 void LED_B(int num){
+	if(num==0){
+		blue_record=0;
+	}
+	if(blue_record>num){
+		blue_record-=FADE_SPEED;
+		num = blue_record;
+	}else{
+		blue_record=num;
+	}
 	num = num*BLUE_P;
 	PWM2H = HIBYTE(num);				
 	PWM2L = LOBYTE(num);
@@ -261,7 +293,7 @@ int get_adc(void)
 {
     uchar ADC_Count=0, i=0;
 	Enable_ADC_AIN5;
-    while(ADC_Count<=64)
+    while(ADC_Count<=ARRAY_SIZE)
     {
       Fft_Real[LIST_TAB[ADC_Count]]=(get_adc()>>2)-256; //按LIST_TAB表里的顺序，进行存储 采样值,,
       //  ADC_CONTR = ADC_POWER | ADC_SPEEDHH| ADC_START | channel;   // 为了采集负电压，采用 偏置采集。电压提高到1/2 vcc，，所以要减去256
@@ -295,16 +327,8 @@ int Send_num(int num){
 }
 
 
-#if 0
-void ADC_ISR (void) interrupt 11
-{
-	int adc_data;
-    clr_ADCF;                               //clear ADC interrupt flag
-	adc_data=(int)(ADCRH<<2) + (int)((ADCRL&0x0f)>>2);
-	ADC_Count++;
-	Send_num(ADC_Count);
-}
-#endif
+#if USE_LED
+
 void ADC_TEST(UINT32 u32CNT)
 {
 	int i=0;
@@ -331,7 +355,7 @@ void ADC_TEST(UINT32 u32CNT)
     clr_TR0;                              		  //Stop Timer0
 	clr_EADC;
 }
-
+#endif
 void main (void) 
 {
 	//set_PD;									//powerdown directly 131.5uA
@@ -433,7 +457,7 @@ void main (void)
 			ADC_Finish();
 			FFT();
 #if 0
-		    for(i=0,j=0; i<32; i++){
+		    for(i=0,j=0; i<ARRAY_SIZE/2; i++){
 				Send_num(LED_TAB[i]);
 				Send_Data_To_UART1(' ');
 				/*
@@ -457,9 +481,6 @@ void main (void)
 			*/
 			Send_Data_To_UART1('\n');
 #endif
-			red=LED_TAB[1]+LED_TAB[2]+LED_TAB[3]+LED_TAB[4]+LED_TAB[5];
-			green=LED_TAB[6]+LED_TAB[7]+LED_TAB[8]+LED_TAB[9]+LED_TAB[10];
-			blue=LED_TAB[11]+LED_TAB[12]+LED_TAB[13]+LED_TAB[14]+LED_TAB[15];
 
 			red=LED_TAB[1];
 			green=LED_TAB[23];
@@ -489,6 +510,11 @@ void main (void)
 		Delay_1ms(10);
 		DEBUG_LED=0;
 		Delay_1ms(20);
+		
+		Send_num(Button_state);
+		Send_Data_To_UART1(' ');
+		Send_num(Play_state);
+		Send_Data_To_UART1(' ');
 		
 		if(Reset_system==1){
 			Delay_1ms(300);				//Add delay 300ms, in case USB connection problem.

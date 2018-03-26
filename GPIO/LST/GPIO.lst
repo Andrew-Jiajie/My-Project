@@ -1,4 +1,4 @@
-C51 COMPILER V9.53.0.0   GPIO                                                              03/03/2018 21:22:45 PAGE 1   
+C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 12:26:17 PAGE 1   
 
 
 C51 COMPILER V9.53.0.0, COMPILATION OF MODULE GPIO
@@ -62,7 +62,7 @@ line level    source
   43          #define SYS_VOLUME 35
   44          #define AUDIO_CTRL P01
   45          #define DEBUG_LED P11
-C51 COMPILER V9.53.0.0   GPIO                                                              03/03/2018 21:22:45 PAGE 2   
+C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 12:26:17 PAGE 2   
 
   46          
   47          /*------------------------------------------------
@@ -126,7 +126,7 @@ line level    source
  105   3            play_trig_state=HIGH;
  106   3            Play_state=PLAYING;
  107   3          }else if(play_trig_state==HIGH && P12==HIGH){
-C51 COMPILER V9.53.0.0   GPIO                                                              03/03/2018 21:22:45 PAGE 3   
+C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 12:26:17 PAGE 3   
 
  108   3            Enable_BIT2_FallEdge_Trig;
  109   3            play_trig_state=LOW;
@@ -190,7 +190,7 @@ line level    source
  165   1        uchar org_p06=P06;
  166   1        uchar org_p07=P07;
  167   1        uchar org_p03=P03;
-C51 COMPILER V9.53.0.0   GPIO                                                              03/03/2018 21:22:45 PAGE 4   
+C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 12:26:17 PAGE 4   
 
  168   1        uchar org_p04=P04;
  169   1        uchar org_p12=P12;
@@ -233,245 +233,269 @@ line level    source
  206   1        Delay_1ms(10);
  207   1        audio_power_on();
  208   1      }
- 209          #define RED_P 44
- 210          #define GREEN_P 46
- 211          #define BLUE_P 44
- 212          // led num range is 0~1024
- 213          void LED_R(int num){
- 214   1        num = num*RED_P;
- 215   1        PWM1H = HIBYTE(num);        
- 216   1        PWM1L = LOBYTE(num);
- 217   1        PWM1_OUTPUT_INVERSE;
- 218   1        set_LOAD;
- 219   1      }
- 220          void LED_G(int num){
- 221   1        num = num*GREEN_P;
- 222   1        PWM3H = HIBYTE(num);        
- 223   1        PWM3L = LOBYTE(num);
- 224   1        PWM3_OUTPUT_INVERSE;
- 225   1        set_LOAD;
- 226   1      }
- 227          void LED_B(int num){
- 228   1        num = num*BLUE_P;
- 229   1        PWM2H = HIBYTE(num);        
-C51 COMPILER V9.53.0.0   GPIO                                                              03/03/2018 21:22:45 PAGE 5   
+ 209          #define RED_P 50//50
+ 210          #define GREEN_P 50//38
+ 211          #define BLUE_P 50//38
+ 212          #define FADE_SPEED 7
+ 213          int red_record=0;
+ 214          int green_record=0;
+ 215          int blue_record=0;
+ 216          
+ 217          // led num range is 0~1024
+ 218          void LED_R(int num){
+ 219   1        if(num==0){
+ 220   2          red_record=0;
+ 221   2        }
+ 222   1        if(red_record>num){
+ 223   2          red_record-=FADE_SPEED;
+ 224   2          num = red_record;
+ 225   2        }else{
+ 226   2          red_record=num;
+ 227   2        }
+ 228   1        num = num*RED_P;
+ 229   1        PWM1H = HIBYTE(num);        
+C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 12:26:17 PAGE 5   
 
- 230   1        PWM2L = LOBYTE(num);
- 231   1        PWM2_OUTPUT_INVERSE;
+ 230   1        PWM1L = LOBYTE(num);
+ 231   1        PWM1_OUTPUT_INVERSE;
  232   1        set_LOAD;
  233   1      }
- 234          void init_LED(){
- 235   1        PWM1_P14_OUTPUT_ENABLE;
- 236   1        PWM3_P00_OUTPUT_ENABLE;
- 237   1        PWM2_P05_OUTPUT_ENABLE;
- 238   1      
- 239   1        PWM_IMDEPENDENT_MODE;
- 240   1        PWM_CLOCK_DIV_8;
- 241   1        PWMPH = 0x07;
- 242   1        PWMPL = 0xCF;
- 243   1        
- 244   1        LED_R(0);
- 245   1        LED_G(0);
- 246   1        LED_B(0);
- 247   1        set_PWMRUN;
- 248   1      }
- 249          //-----------------------------------------------------------------------------------
- 250          
- 251          #if USE_LED
- 252          unsigned int ADC_Count=0;
- 253          int get_adc(void)
- 254          {
- 255   1        clr_ADCF;
- 256   1        set_ADCS;                 // ADC start trig signal
- 257   1        while(ADCF == 0);
- 258   1          return (int)(ADCRH<<2) + (int)((ADCRL&0x0f)>>2);//(((int)ADCRH)<<4+ADCRL&0x0f);
- 259   1      }
- 260           void ADC_Finish()
- 261          {
- 262   1          uchar ADC_Count=0, i=0;
- 263   1        Enable_ADC_AIN5;
- 264   1          while(ADC_Count<=64)
- 265   1          {
- 266   2            Fft_Real[LIST_TAB[ADC_Count]]=(get_adc()>>2)-256; //∞¥LIST_TAB±Ì¿ÔµƒÀ≥–Ú£¨Ω¯––¥Ê¥¢ ≤…—˘÷µ,,
- 267   2            //  ADC_CONTR = ADC_POWER | ADC_SPEEDHH| ADC_START | channel;   // Œ™¡À≤…ºØ∏∫µÁ—π£¨≤…”√ ∆´÷√≤…ºØ°£µÁ
+ 234          void LED_G(int num){
+ 235   1        if(num==0){
+ 236   2          green_record=0;
+ 237   2        }
+ 238   1        if(green_record>num){
+ 239   2          green_record-=FADE_SPEED;
+ 240   2          num = green_record;
+ 241   2        }else{
+ 242   2          green_record=num;
+ 243   2        }
+ 244   1        num = num*GREEN_P;
+ 245   1        PWM3H = HIBYTE(num);        
+ 246   1        PWM3L = LOBYTE(num);
+ 247   1        PWM3_OUTPUT_INVERSE;
+ 248   1        set_LOAD;
+ 249   1      }
+ 250          void LED_B(int num){
+ 251   1        if(num==0){
+ 252   2          blue_record=0;
+ 253   2        }
+ 254   1        if(blue_record>num){
+ 255   2          blue_record-=FADE_SPEED;
+ 256   2          num = blue_record;
+ 257   2        }else{
+ 258   2          blue_record=num;
+ 259   2        }
+ 260   1        num = num*BLUE_P;
+ 261   1        PWM2H = HIBYTE(num);        
+ 262   1        PWM2L = LOBYTE(num);
+ 263   1        PWM2_OUTPUT_INVERSE;
+ 264   1        set_LOAD;
+ 265   1      }
+ 266          void init_LED(){
+ 267   1        PWM1_P14_OUTPUT_ENABLE;
+ 268   1        PWM3_P00_OUTPUT_ENABLE;
+ 269   1        PWM2_P05_OUTPUT_ENABLE;
+ 270   1      
+ 271   1        PWM_IMDEPENDENT_MODE;
+ 272   1        PWM_CLOCK_DIV_8;
+ 273   1        PWMPH = 0x07;
+ 274   1        PWMPL = 0xCF;
+ 275   1        
+ 276   1        LED_R(0);
+ 277   1        LED_G(0);
+ 278   1        LED_B(0);
+ 279   1        set_PWMRUN;
+ 280   1      }
+ 281          //-----------------------------------------------------------------------------------
+ 282          
+ 283          #if USE_LED
+ 284          unsigned int ADC_Count=0;
+ 285          int get_adc(void)
+ 286          {
+ 287   1        clr_ADCF;
+ 288   1        set_ADCS;                 // ADC start trig signal
+ 289   1        while(ADCF == 0);
+ 290   1          return (int)(ADCRH<<2) + (int)((ADCRL&0x0f)>>2);//(((int)ADCRH)<<4+ADCRL&0x0f);
+ 291   1      }
+C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 12:26:17 PAGE 6   
+
+ 292           void ADC_Finish()
+ 293          {
+ 294   1          uchar ADC_Count=0, i=0;
+ 295   1        Enable_ADC_AIN5;
+ 296   1          while(ADC_Count<=ARRAY_SIZE)
+ 297   1          {
+ 298   2            Fft_Real[LIST_TAB[ADC_Count]]=(get_adc()>>2)-256; //∞¥LIST_TAB±Ì¿ÔµƒÀ≥–Ú£¨Ω¯––¥Ê¥¢ ≤…—˘÷µ,,
+ 299   2            //  ADC_CONTR = ADC_POWER | ADC_SPEEDHH| ADC_START | channel;   // Œ™¡À≤…ºØ∏∫µÁ—π£¨≤…”√ ∆´÷√≤…ºØ°£µÁ
              -—πÃ·∏ﬂµΩ1/2 vcc£¨£¨À˘“‘“™ºı»•256
- 268   2            ADC_Count++;
- 269   2          for(i=0; i<10; i++){}   //Dealy to make sure it reache 20K HZ to sample music
- 270   2          }
- 271   1      }
- 272          #endif
- 273          
- 274          int Send_num(int num){
- 275   1        char CharToSend[10];
- 276   1        uchar i=0,j=9;
- 277   1        uchar negative=0;
- 278   1        if(num<0){
- 279   2          negative=1;
- 280   2          num=-num;
- 281   2        }
- 282   1        if(num==0)
- 283   1          CharToSend[j--]='0';
- 284   1        while(num>0){
- 285   2          uchar aa=num%10;
- 286   2          CharToSend[j--]='0'+aa;
- 287   2          num=num/10;
- 288   2        }
- 289   1        if(negative==1){
- 290   2          CharToSend[j--]='-';
-C51 COMPILER V9.53.0.0   GPIO                                                              03/03/2018 21:22:45 PAGE 6   
-
- 291   2        }
- 292   1        for(i=j+1; i<10; i++){
- 293   2          Send_Data_To_UART1(CharToSend[i]);
- 294   2        }
- 295   1      }
- 296          
- 297          
- 298          #if 0
-              void ADC_ISR (void) interrupt 11
-              {
-                int adc_data;
-                  clr_ADCF;                               //clear ADC interrupt flag
-                adc_data=(int)(ADCRH<<2) + (int)((ADCRL&0x0f)>>2);
-                ADC_Count++;
-                Send_num(ADC_Count);
-              }
-              #endif
- 308          void ADC_TEST(UINT32 u32CNT)
- 309          {
- 310   1        int i=0;
- 311   1        Enable_ADC_AIN5;
- 312   1        set_EADC;
- 313   1          clr_T0M;                                    //T0M=0, Timer0 Clock = Fsys/12
- 314   1          TMOD |= 0x01;                               //Timer0 is 16-bit mode
- 315   1          set_TR0;                                    //Start Timer0
- 316   1          while (u32CNT != 0)
- 317   1          {
- 318   2              TL0 = LOBYTE(TIMER_DIV12_VALUE_10ms);     //Find  define in "Function_define.h" "TIMER VALUE"
- 319   2              TH0 = HIBYTE(TIMER_DIV12_VALUE_10ms);
- 320   2              while (TF0 != 1){
- 321   3                Fft_Real[LIST_TAB[ADC_Count]]=get_adc()-256; //∞¥LIST_TAB±Ì¿ÔµƒÀ≥–Ú£¨Ω¯––¥Ê¥¢ ≤…—˘÷µ,,
- 322   3                //  ADC_CONTR = ADC_POWER | ADC_SPEEDHH| ADC_START | channel;   // Œ™¡À≤…ºØ∏∫µÁ—π£¨≤…”√ ∆´÷√≤…ºØ°
+ 300   2            ADC_Count++;
+ 301   2          for(i=0; i<10; i++){}   //Dealy to make sure it reache 20K HZ to sample music
+ 302   2          }
+ 303   1      }
+ 304          #endif
+ 305          
+ 306          int Send_num(int num){
+ 307   1        char CharToSend[10];
+ 308   1        uchar i=0,j=9;
+ 309   1        uchar negative=0;
+ 310   1        if(num<0){
+ 311   2          negative=1;
+ 312   2          num=-num;
+ 313   2        }
+ 314   1        if(num==0)
+ 315   1          CharToSend[j--]='0';
+ 316   1        while(num>0){
+ 317   2          uchar aa=num%10;
+ 318   2          CharToSend[j--]='0'+aa;
+ 319   2          num=num/10;
+ 320   2        }
+ 321   1        if(negative==1){
+ 322   2          CharToSend[j--]='-';
+ 323   2        }
+ 324   1        for(i=j+1; i<10; i++){
+ 325   2          Send_Data_To_UART1(CharToSend[i]);
+ 326   2        }
+ 327   1      }
+ 328          
+ 329          
+ 330          #if USE_LED
+ 331          
+ 332          void ADC_TEST(UINT32 u32CNT)
+ 333          {
+ 334   1        int i=0;
+ 335   1        Enable_ADC_AIN5;
+ 336   1        set_EADC;
+ 337   1          clr_T0M;                                    //T0M=0, Timer0 Clock = Fsys/12
+ 338   1          TMOD |= 0x01;                               //Timer0 is 16-bit mode
+ 339   1          set_TR0;                                    //Start Timer0
+ 340   1          while (u32CNT != 0)
+ 341   1          {
+ 342   2              TL0 = LOBYTE(TIMER_DIV12_VALUE_10ms);     //Find  define in "Function_define.h" "TIMER VALUE"
+ 343   2              TH0 = HIBYTE(TIMER_DIV12_VALUE_10ms);
+ 344   2              while (TF0 != 1){
+ 345   3                Fft_Real[LIST_TAB[ADC_Count]]=get_adc()-256; //∞¥LIST_TAB±Ì¿ÔµƒÀ≥–Ú£¨Ω¯––¥Ê¥¢ ≤…—˘÷µ,,
+ 346   3                //  ADC_CONTR = ADC_POWER | ADC_SPEEDHH| ADC_START | channel;   // Œ™¡À≤…ºØ∏∫µÁ—π£¨≤…”√ ∆´÷√≤…ºØ°
              -£µÁ—πÃ·∏ﬂµΩ1/2 vcc£¨£¨À˘“‘“™ºı»•256
- 323   3                ADC_Count++;
- 324   3              for(i=0; i<13; i++){}   //Dealy to make sure it reache 20K HZ to sample music
- 325   3              };                      //Check Timer0 Time-Out Flag
- 326   2              clr_TF0;
- 327   2              u32CNT --;
- 328   2          }
- 329   1        Send_num(ADC_Count);
- 330   1        ADC_Count=0;
- 331   1          clr_TR0;                                    //Stop Timer0
- 332   1        clr_EADC;
- 333   1      }
- 334          
- 335          void main (void) 
- 336          {
- 337   1        //set_PD;                 //powerdown directly 131.5uA
- 338   1        Set_All_GPIO_Quasi_Mode;          // Define in Function_define.h
- 339   1        DEBUG_LED=0;
- 340   1        P01_PushPull_Mode;
- 341   1        AUDIO_CTRL=1;
- 342   1        Delay_1ms(300);               //Delay 300ms in case download problem
- 343   1        InitialUART0_Timer1(9600);
- 344   1        InitialUART1_Timer3(115200);
- 345   1        Send_Data_To_UART0(0xaa);
- 346   1        Send_Data_To_UART0(0xaa);
- 347   1        set_CLOEN; 
- 348   1        audio_power_on(); 
- 349   1      /*-------------------------------Init Timer---------------------------------------------*/
- 350   1      #if 1
- 351   1        TIMER0_MODE0_ENABLE;                        //Timer 0 and Timer 1 mode configuration
-C51 COMPILER V9.53.0.0   GPIO                                                              03/03/2018 21:22:45 PAGE 7   
+ 347   3                ADC_Count++;
+ 348   3              for(i=0; i<13; i++){}   //Dealy to make sure it reache 20K HZ to sample music
+ 349   3              };                      //Check Timer0 Time-Out Flag
+ 350   2              clr_TF0;
+ 351   2              u32CNT --;
+C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 12:26:17 PAGE 7   
 
- 352   1        clr_T0M;
- 353   1          TMOD |= 0x01;                               //Timer0 is 16-bit mode
- 354   1          TL0 = LOBYTE(TIMER_DIV12_VALUE_40ms);     //Find  define in "Function_define.h" "TIMER VALUE"
- 355   1          TH0 = HIBYTE(TIMER_DIV12_VALUE_40ms);
- 356   1        set_ET0;                                    //enable Timer0 interrupt
- 357   1        set_EA;                                     //enable interrupts
- 358   1        set_TR0;                                    //Timer0 run
- 359   1      #endif
- 360   1      
- 361   1      /*-------------------------------Init Interrupts---------------------------------------------*/
- 362   1      #if 1
- 363   1        //Switch detect
- 364   1        P17_Input_Mode;
- 365   1        set_P0S_7;
- 366   1        Enable_BIT7_FallEdge_Trig;
- 367   1        button_trig_state=LOW;
- 368   1        
- 369   1        //USB detect
- 370   1        P13_Input_Mode;
- 371   1        set_P0S_3;
- 372   1        Enable_BIT3_RasingEdge_Trig;
- 373   1        charge_trig_state=HIGH;
- 374   1        
- 375   1        //audio BUSY pin
- 376   1        P12_Input_Mode;
- 377   1        set_P0S_2;
- 378   1        Enable_BIT2_FallEdge_Trig;
- 379   1        play_trig_state=LOW;
- 380   1      
- 381   1        Enable_INT_Port1;
- 382   1        set_EPI;              // Enable pin interrupt
- 383   1        //set_EA;               // global enable bit
+ 352   2          }
+ 353   1        Send_num(ADC_Count);
+ 354   1        ADC_Count=0;
+ 355   1          clr_TR0;                                    //Stop Timer0
+ 356   1        clr_EADC;
+ 357   1      }
+ 358          #endif
+ 359          void main (void) 
+ 360          {
+ 361   1        //set_PD;                 //powerdown directly 131.5uA
+ 362   1        Set_All_GPIO_Quasi_Mode;          // Define in Function_define.h
+ 363   1        DEBUG_LED=0;
+ 364   1        P01_PushPull_Mode;
+ 365   1        AUDIO_CTRL=1;
+ 366   1        Delay_1ms(300);               //Delay 300ms in case download problem
+ 367   1        InitialUART0_Timer1(9600);
+ 368   1        InitialUART1_Timer3(115200);
+ 369   1        Send_Data_To_UART0(0xaa);
+ 370   1        Send_Data_To_UART0(0xaa);
+ 371   1        set_CLOEN; 
+ 372   1        audio_power_on(); 
+ 373   1      /*-------------------------------Init Timer---------------------------------------------*/
+ 374   1      #if 1
+ 375   1        TIMER0_MODE0_ENABLE;                        //Timer 0 and Timer 1 mode configuration
+ 376   1        clr_T0M;
+ 377   1          TMOD |= 0x01;                               //Timer0 is 16-bit mode
+ 378   1          TL0 = LOBYTE(TIMER_DIV12_VALUE_40ms);     //Find  define in "Function_define.h" "TIMER VALUE"
+ 379   1          TH0 = HIBYTE(TIMER_DIV12_VALUE_40ms);
+ 380   1        set_ET0;                                    //enable Timer0 interrupt
+ 381   1        set_EA;                                     //enable interrupts
+ 382   1        set_TR0;                                    //Timer0 run
+ 383   1      #endif
  384   1      
- 385   1      #endif
- 386   1      /*---------------------------------Main function-----------------------------------------------*/
- 387   1        init_LED();
- 388   1        Specify_Volume(SYS_VOLUME);
- 389   1        while(1){
- 390   2          //set_PD;         //powerdown here can be 145.8uA
- 391   2          if(Button_state==SW_PRESS && Charge_state==OFF){
- 392   3            Button_state=SW_NONE;
- 393   3            Body_Music_Play=STOP;     //only head can set Body_Music_Play to stop. this can make sure the play order
- 394   3            if(Power_state==OFF){
- 395   4              audio_power_on();
- 396   4              Specify_Volume(SYS_VOLUME);
- 397   4            }
- 398   3            Play_head_music();
- 399   3            Delay_1ms(5);
- 400   3            if(Play_state==PLAYING){
- 401   4              Head_play_fail=0;
- 402   4              Body_play_fail=0;
- 403   4            }else{
- 404   4              Head_play_fail++;
- 405   4            }
- 406   3          }
- 407   2          if(Button_state==SW_RELEASE && Charge_state==OFF && Body_Music_Play==STOP){
- 408   3            Button_state=SW_NONE;
- 409   3            Body_Music_Play=WAITING;
- 410   3          }
- 411   2          if(Play_state==STOP && Body_Music_Play==WAITING){
- 412   3            if(Power_state==ON){
- 413   4              Play_body_music();
-C51 COMPILER V9.53.0.0   GPIO                                                              03/03/2018 21:22:45 PAGE 8   
+ 385   1      /*-------------------------------Init Interrupts---------------------------------------------*/
+ 386   1      #if 1
+ 387   1        //Switch detect
+ 388   1        P17_Input_Mode;
+ 389   1        set_P0S_7;
+ 390   1        Enable_BIT7_FallEdge_Trig;
+ 391   1        button_trig_state=LOW;
+ 392   1        
+ 393   1        //USB detect
+ 394   1        P13_Input_Mode;
+ 395   1        set_P0S_3;
+ 396   1        Enable_BIT3_RasingEdge_Trig;
+ 397   1        charge_trig_state=HIGH;
+ 398   1        
+ 399   1        //audio BUSY pin
+ 400   1        P12_Input_Mode;
+ 401   1        set_P0S_2;
+ 402   1        Enable_BIT2_FallEdge_Trig;
+ 403   1        play_trig_state=LOW;
+ 404   1      
+ 405   1        Enable_INT_Port1;
+ 406   1        set_EPI;              // Enable pin interrupt
+ 407   1        //set_EA;               // global enable bit
+ 408   1      
+ 409   1      #endif
+ 410   1      /*---------------------------------Main function-----------------------------------------------*/
+ 411   1        init_LED();
+ 412   1        Specify_Volume(SYS_VOLUME);
+ 413   1        while(1){
+C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 12:26:17 PAGE 8   
 
- 414   4              Delay_1ms(5);
- 415   4              if(Play_state==PLAYING){
- 416   5                Body_Music_Play=PLAYING;
- 417   5                Body_play_fail=0;
- 418   5                Head_play_fail=0;
- 419   5              }else{
- 420   5                Body_play_fail++;
- 421   5              }
- 422   4            }
- 423   3          }
- 424   2          if(Body_play_fail>=2 && Head_play_fail>=2){ //if switch key state problem, will reboot system to get thi
+ 414   2          //set_PD;         //powerdown here can be 145.8uA
+ 415   2          if(Button_state==SW_PRESS && Charge_state==OFF){
+ 416   3            Button_state=SW_NONE;
+ 417   3            Body_Music_Play=STOP;     //only head can set Body_Music_Play to stop. this can make sure the play order
+ 418   3            if(Power_state==OFF){
+ 419   4              audio_power_on();
+ 420   4              Specify_Volume(SYS_VOLUME);
+ 421   4            }
+ 422   3            Play_head_music();
+ 423   3            Delay_1ms(5);
+ 424   3            if(Play_state==PLAYING){
+ 425   4              Head_play_fail=0;
+ 426   4              Body_play_fail=0;
+ 427   4            }else{
+ 428   4              Head_play_fail++;
+ 429   4            }
+ 430   3          }
+ 431   2          if(Button_state==SW_RELEASE && Charge_state==OFF && Body_Music_Play==STOP){
+ 432   3            Button_state=SW_NONE;
+ 433   3            Body_Music_Play=WAITING;
+ 434   3          }
+ 435   2          if(Play_state==STOP && Body_Music_Play==WAITING){
+ 436   3            if(Power_state==ON){
+ 437   4              Play_body_music();
+ 438   4              Delay_1ms(5);
+ 439   4              if(Play_state==PLAYING){
+ 440   5                Body_Music_Play=PLAYING;
+ 441   5                Body_play_fail=0;
+ 442   5                Head_play_fail=0;
+ 443   5              }else{
+ 444   5                Body_play_fail++;
+ 445   5              }
+ 446   4            }
+ 447   3          }
+ 448   2          if(Body_play_fail>=2 && Head_play_fail>=2){ //if switch key state problem, will reboot system to get thi
              -ngs ready
- 425   3            Reset_system=1;
- 426   3          }
- 427   2          if(Play_state==PLAYING){
- 428   3      #if USE_LED
- 429   3            uchar i=0, j=0;
- 430   3            int red=0, green=0, blue=0;
- 431   3            char CharToSend[60];
- 432   3            set_PWMRUN;
- 433   3            ADC_Finish();
- 434   3            FFT();
- 435   3      #if 0
-                      for(i=0,j=0; i<32; i++){
+ 449   3            Reset_system=1;
+ 450   3          }
+ 451   2          if(Play_state==PLAYING){
+ 452   3      #if USE_LED
+ 453   3            uchar i=0, j=0;
+ 454   3            int red=0, green=0, blue=0;
+ 455   3            char CharToSend[60];
+ 456   3            set_PWMRUN;
+ 457   3            ADC_Finish();
+ 458   3            FFT();
+ 459   3      #if 0
+                      for(i=0,j=0; i<ARRAY_SIZE/2; i++){
                       Send_num(LED_TAB[i]);
                       Send_Data_To_UART1(' ');
                       /*
@@ -486,6 +510,8 @@ line level    source
                         CharToSend[j++]='0'+aa;
                         CharToSend[j++]='0'+bb;
                         CharToSend[j++]=' ';
+C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 12:26:17 PAGE 9   
+
                       }*/
                       }
                     /*
@@ -495,92 +521,92 @@ line level    source
                     */
                     Send_Data_To_UART1('\n');
               #endif
- 460   3            red=LED_TAB[1]+LED_TAB[2]+LED_TAB[3]+LED_TAB[4]+LED_TAB[5];
- 461   3            green=LED_TAB[6]+LED_TAB[7]+LED_TAB[8]+LED_TAB[9]+LED_TAB[10];
- 462   3            blue=LED_TAB[11]+LED_TAB[12]+LED_TAB[13]+LED_TAB[14]+LED_TAB[15];
- 463   3      
- 464   3            red=LED_TAB[1];
- 465   3            green=LED_TAB[23];
- 466   3            blue=LED_TAB[27];
- 467   3            //red=red*35;
- 468   3            //green=green*35;
- 469   3            //green=green*2;
- 470   3            
- 471   3            //red>green ? (red>blue? LED_R(red):LED_B(blue)):(green>blue? LED_G(green):LED_B(blue));
- 472   3            //LED_TAB[23]>LED_TAB[27]? LED_G(green):LED_B(blue);
- 473   3            LED_R(red);
- 474   3            LED_G(green);
-C51 COMPILER V9.53.0.0   GPIO                                                              03/03/2018 21:22:45 PAGE 9   
-
- 475   3            LED_B(blue);
- 476   3      #else
+ 484   3      
+ 485   3            red=LED_TAB[1];
+ 486   3            green=LED_TAB[23];
+ 487   3            blue=LED_TAB[27];
+ 488   3            //red=red*35;
+ 489   3            //green=green*35;
+ 490   3            //green=green*2;
+ 491   3            
+ 492   3            //red>green ? (red>blue? LED_R(red):LED_B(blue)):(green>blue? LED_G(green):LED_B(blue));
+ 493   3            //LED_TAB[23]>LED_TAB[27]? LED_G(green):LED_B(blue);
+ 494   3            LED_R(red);
+ 495   3            LED_G(green);
+ 496   3            LED_B(blue);
+ 497   3      #else
                     set_IDL;        //save power, if LED do not turn on
               #endif
- 479   3              wake_time = 0;
- 480   3          }
- 481   2          if(Play_state==STOP){
- 482   3            LED_R(0);
- 483   3            LED_G(0);
- 484   3            LED_B(0);
- 485   3            set_IDL;
- 486   3          }
- 487   2      
- 488   2          DEBUG_LED=1;      //let LED shining to detect if system active.
- 489   2          Delay_1ms(10);
- 490   2          DEBUG_LED=0;
- 491   2          Delay_1ms(20);
- 492   2          
- 493   2          if(Reset_system==1){
- 494   3            Delay_1ms(300);       //Add delay 300ms, in case USB connection problem.
- 495   3            if(Reset_system==1){
- 496   4              Reset_system=0;
- 497   4              SW_Reset();
-*** WARNING C206 IN LINE 497 OF Code\GPIO.C: 'SW_Reset': missing function-prototype
- 498   4            }
- 499   3          }
- 500   2          if(Reset_audio==1){
- 501   3            Delay_1ms(100);       //Add delay 300ms, in case USB connection problem.
- 502   3            if(Reset_audio==1){
- 503   4              Reset_audio=0;
- 504   4              reboot_audio();     //reboot audio, to get the charger type.
- 505   4            }
- 506   3          }
- 507   2          if(Play_state==PLAYING && Charge_state==ON){
- 508   3            Stop_music();
- 509   3          }
- 510   2          if(Play_state==STOP && Charge_state==OFF && wake_time > SECOND*8)
- 511   2          {
- 512   3            //Send_Data_To_UART0(0xaa);
- 513   3            audio_power_off(1);
- 514   3          }
- 515   2          if(Charge_state==ON && Charge_type==TYPE_USB && wake_time > MINIT*20) //when USB state, power off audio 
+ 500   3              wake_time = 0;
+ 501   3          }
+ 502   2          if(Play_state==STOP){
+ 503   3            LED_R(0);
+ 504   3            LED_G(0);
+ 505   3            LED_B(0);
+ 506   3            set_IDL;
+ 507   3          }
+ 508   2      
+ 509   2          DEBUG_LED=1;      //let LED shining to detect if system active.
+ 510   2          Delay_1ms(10);
+ 511   2          DEBUG_LED=0;
+ 512   2          Delay_1ms(20);
+ 513   2          
+ 514   2          Send_num(Button_state);
+ 515   2          Send_Data_To_UART1(' ');
+ 516   2          Send_num(Play_state);
+ 517   2          Send_Data_To_UART1(' ');
+ 518   2          
+ 519   2          if(Reset_system==1){
+ 520   3            Delay_1ms(300);       //Add delay 300ms, in case USB connection problem.
+ 521   3            if(Reset_system==1){
+ 522   4              Reset_system=0;
+ 523   4              SW_Reset();
+*** WARNING C206 IN LINE 523 OF Code\GPIO.C: 'SW_Reset': missing function-prototype
+ 524   4            }
+ 525   3          }
+ 526   2          if(Reset_audio==1){
+ 527   3            Delay_1ms(100);       //Add delay 300ms, in case USB connection problem.
+ 528   3            if(Reset_audio==1){
+ 529   4              Reset_audio=0;
+ 530   4              reboot_audio();     //reboot audio, to get the charger type.
+ 531   4            }
+ 532   3          }
+ 533   2          if(Play_state==PLAYING && Charge_state==ON){
+ 534   3            Stop_music();
+ 535   3          }
+C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 12:26:17 PAGE 10  
+
+ 536   2          if(Play_state==STOP && Charge_state==OFF && wake_time > SECOND*8)
+ 537   2          {
+ 538   3            //Send_Data_To_UART0(0xaa);
+ 539   3            audio_power_off(1);
+ 540   3          }
+ 541   2          if(Charge_state==ON && Charge_type==TYPE_USB && wake_time > MINIT*20) //when USB state, power off audio 
              -after 20min, to make sure device can charge to full.
- 516   2          {
- 517   3            //Send_Data_To_UART0(0xbb);
- 518   3            audio_power_off(1);
- 519   3          }
- 520   2          if(Charge_state==ON && Charge_type!=TYPE_USB && wake_time > MINIT*20) //when AC state, power off audio a
+ 542   2          {
+ 543   3            //Send_Data_To_UART0(0xbb);
+ 544   3            audio_power_off(1);
+ 545   3          }
+ 546   2          if(Charge_state==ON && Charge_type!=TYPE_USB && wake_time > MINIT*20) //when AC state, power off audio a
              -fter 1min,power off audio, to make sure device can charge to full.
- 521   2          {
- 522   3            //Send_Data_To_UART0(0xcc);
- 523   3            audio_power_off(1);
- 524   3          }
- 525   2      
- 526   2        }
- 527   1      }
-*** WARNING C280 IN LINE 431 OF Code\GPIO.C: 'CharToSend': unreferenced local variable
+ 547   2          {
+ 548   3            //Send_Data_To_UART0(0xcc);
+ 549   3            audio_power_off(1);
+ 550   3          }
+ 551   2      
+ 552   2        }
+ 553   1      }
+*** WARNING C280 IN LINE 455 OF Code\GPIO.C: 'CharToSend': unreferenced local variable
 *** WARNING C290 IN LINE 159 OF Code\GPIO.C: missing return value
 *** WARNING C290 IN LINE 171 OF Code\GPIO.C: missing return value
 *** WARNING C290 IN LINE 220 OF Code\GPIO.C: missing return value
-*** WARNING C290 IN LINE 295 OF Code\GPIO.C: missing return value
-
-C51 COMPILER V9.53.0.0   GPIO                                                              03/03/2018 21:22:45 PAGE 10  
+*** WARNING C290 IN LINE 327 OF Code\GPIO.C: missing return value
 
 
 MODULE INFORMATION:   STATIC OVERLAYABLE
-   CODE SIZE        =   5720    ----
+   CODE SIZE        =   5539    ----
    CONSTANT SIZE    =   ----    ----
-   XDATA SIZE       =    563     161
+   XDATA SIZE       =    569     149
    PDATA SIZE       =   ----    ----
    DATA SIZE        =   ----    ----
    IDATA SIZE       =   ----    ----
