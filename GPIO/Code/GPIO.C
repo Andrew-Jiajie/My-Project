@@ -206,10 +206,10 @@ void reboot_audio()
 	Delay_1ms(10);
 	audio_power_on();
 }
-#define RED_P 50//50
-#define GREEN_P 50//38
-#define BLUE_P 50//38
-#define FADE_SPEED 7
+#define RED_P 80//50
+#define GREEN_P 80//38
+#define BLUE_P 80//38
+#define FADE_SPEED 9
 int red_record=0;
 int green_record=0;
 int blue_record=0;
@@ -293,7 +293,7 @@ int get_adc(void)
 {
     uchar ADC_Count=0, i=0;
 	Enable_ADC_AIN5;
-    while(ADC_Count<=ARRAY_SIZE)
+    while(ADC_Count<ARRAY_SIZE)
     {
       Fft_Real[LIST_TAB[ADC_Count]]=(get_adc()>>2)-256; //按LIST_TAB表里的顺序，进行存储 采样值,,
       //  ADC_CONTR = ADC_POWER | ADC_SPEEDHH| ADC_START | channel;   // 为了采集负电压，采用 偏置采集。电压提高到1/2 vcc，，所以要减去256
@@ -511,10 +511,6 @@ void main (void)
 		DEBUG_LED=0;
 		Delay_1ms(20);
 		
-		Send_num(Button_state);
-		Send_Data_To_UART1(' ');
-		Send_num(Play_state);
-		Send_Data_To_UART1(' ');
 		
 		if(Reset_system==1){
 			Delay_1ms(300);				//Add delay 300ms, in case USB connection problem.

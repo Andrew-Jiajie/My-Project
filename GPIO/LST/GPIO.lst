@@ -1,4 +1,4 @@
-C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 12:26:17 PAGE 1   
+C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 20:12:10 PAGE 1   
 
 
 C51 COMPILER V9.53.0.0, COMPILATION OF MODULE GPIO
@@ -62,7 +62,7 @@ line level    source
   43          #define SYS_VOLUME 35
   44          #define AUDIO_CTRL P01
   45          #define DEBUG_LED P11
-C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 12:26:17 PAGE 2   
+C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 20:12:10 PAGE 2   
 
   46          
   47          /*------------------------------------------------
@@ -126,7 +126,7 @@ line level    source
  105   3            play_trig_state=HIGH;
  106   3            Play_state=PLAYING;
  107   3          }else if(play_trig_state==HIGH && P12==HIGH){
-C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 12:26:17 PAGE 3   
+C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 20:12:10 PAGE 3   
 
  108   3            Enable_BIT2_FallEdge_Trig;
  109   3            play_trig_state=LOW;
@@ -190,7 +190,7 @@ line level    source
  165   1        uchar org_p06=P06;
  166   1        uchar org_p07=P07;
  167   1        uchar org_p03=P03;
-C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 12:26:17 PAGE 4   
+C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 20:12:10 PAGE 4   
 
  168   1        uchar org_p04=P04;
  169   1        uchar org_p12=P12;
@@ -233,10 +233,10 @@ line level    source
  206   1        Delay_1ms(10);
  207   1        audio_power_on();
  208   1      }
- 209          #define RED_P 50//50
- 210          #define GREEN_P 50//38
- 211          #define BLUE_P 50//38
- 212          #define FADE_SPEED 7
+ 209          #define RED_P 80//50
+ 210          #define GREEN_P 80//38
+ 211          #define BLUE_P 80//38
+ 212          #define FADE_SPEED 9
  213          int red_record=0;
  214          int green_record=0;
  215          int blue_record=0;
@@ -254,7 +254,7 @@ line level    source
  227   2        }
  228   1        num = num*RED_P;
  229   1        PWM1H = HIBYTE(num);        
-C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 12:26:17 PAGE 5   
+C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 20:12:10 PAGE 5   
 
  230   1        PWM1L = LOBYTE(num);
  231   1        PWM1_OUTPUT_INVERSE;
@@ -318,13 +318,13 @@ line level    source
  289   1        while(ADCF == 0);
  290   1          return (int)(ADCRH<<2) + (int)((ADCRL&0x0f)>>2);//(((int)ADCRH)<<4+ADCRL&0x0f);
  291   1      }
-C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 12:26:17 PAGE 6   
+C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 20:12:10 PAGE 6   
 
  292           void ADC_Finish()
  293          {
  294   1          uchar ADC_Count=0, i=0;
  295   1        Enable_ADC_AIN5;
- 296   1          while(ADC_Count<=ARRAY_SIZE)
+ 296   1          while(ADC_Count<ARRAY_SIZE)
  297   1          {
  298   2            Fft_Real[LIST_TAB[ADC_Count]]=(get_adc()>>2)-256; //按LIST_TAB表里的顺序，进行存储 采样值,,
  299   2            //  ADC_CONTR = ADC_POWER | ADC_SPEEDHH| ADC_START | channel;   // 为了采集负电压，采用 偏置采集。电
@@ -382,7 +382,7 @@ line level    source
  349   3              };                      //Check Timer0 Time-Out Flag
  350   2              clr_TF0;
  351   2              u32CNT --;
-C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 12:26:17 PAGE 7   
+C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 20:12:10 PAGE 7   
 
  352   2          }
  353   1        Send_num(ADC_Count);
@@ -446,7 +446,7 @@ line level    source
  411   1        init_LED();
  412   1        Specify_Volume(SYS_VOLUME);
  413   1        while(1){
-C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 12:26:17 PAGE 8   
+C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 20:12:10 PAGE 8   
 
  414   2          //set_PD;         //powerdown here can be 145.8uA
  415   2          if(Button_state==SW_PRESS && Charge_state==OFF){
@@ -510,7 +510,7 @@ line level    source
                         CharToSend[j++]='0'+aa;
                         CharToSend[j++]='0'+bb;
                         CharToSend[j++]=' ';
-C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 12:26:17 PAGE 9   
+C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 20:12:10 PAGE 9   
 
                       }*/
                       }
@@ -551,51 +551,47 @@ line level    source
  511   2          DEBUG_LED=0;
  512   2          Delay_1ms(20);
  513   2          
- 514   2          Send_num(Button_state);
- 515   2          Send_Data_To_UART1(' ');
- 516   2          Send_num(Play_state);
- 517   2          Send_Data_To_UART1(' ');
- 518   2          
- 519   2          if(Reset_system==1){
- 520   3            Delay_1ms(300);       //Add delay 300ms, in case USB connection problem.
- 521   3            if(Reset_system==1){
- 522   4              Reset_system=0;
- 523   4              SW_Reset();
-*** WARNING C206 IN LINE 523 OF Code\GPIO.C: 'SW_Reset': missing function-prototype
- 524   4            }
- 525   3          }
- 526   2          if(Reset_audio==1){
- 527   3            Delay_1ms(100);       //Add delay 300ms, in case USB connection problem.
- 528   3            if(Reset_audio==1){
- 529   4              Reset_audio=0;
- 530   4              reboot_audio();     //reboot audio, to get the charger type.
- 531   4            }
- 532   3          }
- 533   2          if(Play_state==PLAYING && Charge_state==ON){
- 534   3            Stop_music();
- 535   3          }
-C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 12:26:17 PAGE 10  
+ 514   2          
+ 515   2          if(Reset_system==1){
+ 516   3            Delay_1ms(300);       //Add delay 300ms, in case USB connection problem.
+ 517   3            if(Reset_system==1){
+ 518   4              Reset_system=0;
+ 519   4              SW_Reset();
+*** WARNING C206 IN LINE 519 OF Code\GPIO.C: 'SW_Reset': missing function-prototype
+ 520   4            }
+ 521   3          }
+ 522   2          if(Reset_audio==1){
+ 523   3            Delay_1ms(100);       //Add delay 300ms, in case USB connection problem.
+ 524   3            if(Reset_audio==1){
+ 525   4              Reset_audio=0;
+ 526   4              reboot_audio();     //reboot audio, to get the charger type.
+ 527   4            }
+ 528   3          }
+ 529   2          if(Play_state==PLAYING && Charge_state==ON){
+ 530   3            Stop_music();
+ 531   3          }
+ 532   2          if(Play_state==STOP && Charge_state==OFF && wake_time > SECOND*8)
+ 533   2          {
+ 534   3            //Send_Data_To_UART0(0xaa);
+ 535   3            audio_power_off(1);
+C51 COMPILER V9.53.0.0   GPIO                                                              03/26/2018 20:12:10 PAGE 10  
 
- 536   2          if(Play_state==STOP && Charge_state==OFF && wake_time > SECOND*8)
- 537   2          {
- 538   3            //Send_Data_To_UART0(0xaa);
- 539   3            audio_power_off(1);
- 540   3          }
- 541   2          if(Charge_state==ON && Charge_type==TYPE_USB && wake_time > MINIT*20) //when USB state, power off audio 
+ 536   3          }
+ 537   2          if(Charge_state==ON && Charge_type==TYPE_USB && wake_time > MINIT*20) //when USB state, power off audio 
              -after 20min, to make sure device can charge to full.
- 542   2          {
- 543   3            //Send_Data_To_UART0(0xbb);
- 544   3            audio_power_off(1);
- 545   3          }
- 546   2          if(Charge_state==ON && Charge_type!=TYPE_USB && wake_time > MINIT*20) //when AC state, power off audio a
+ 538   2          {
+ 539   3            //Send_Data_To_UART0(0xbb);
+ 540   3            audio_power_off(1);
+ 541   3          }
+ 542   2          if(Charge_state==ON && Charge_type!=TYPE_USB && wake_time > MINIT*20) //when AC state, power off audio a
              -fter 1min,power off audio, to make sure device can charge to full.
- 547   2          {
- 548   3            //Send_Data_To_UART0(0xcc);
- 549   3            audio_power_off(1);
- 550   3          }
- 551   2      
- 552   2        }
- 553   1      }
+ 543   2          {
+ 544   3            //Send_Data_To_UART0(0xcc);
+ 545   3            audio_power_off(1);
+ 546   3          }
+ 547   2      
+ 548   2        }
+ 549   1      }
 *** WARNING C280 IN LINE 455 OF Code\GPIO.C: 'CharToSend': unreferenced local variable
 *** WARNING C290 IN LINE 159 OF Code\GPIO.C: missing return value
 *** WARNING C290 IN LINE 171 OF Code\GPIO.C: missing return value
@@ -604,7 +600,7 @@ line level    source
 
 
 MODULE INFORMATION:   STATIC OVERLAYABLE
-   CODE SIZE        =   5539    ----
+   CODE SIZE        =   5509    ----
    CONSTANT SIZE    =   ----    ----
    XDATA SIZE       =    569     149
    PDATA SIZE       =   ----    ----

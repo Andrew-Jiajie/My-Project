@@ -33,7 +33,7 @@ char LIST_TAB[ARRAY_SIZE] = { 0, 32, 16, 48, 8, 40, 24, 56,
 7, 39, 23, 55, 15, 47, 31, 63
 };
 
-//char test[ARRAY_SIZE*2];
+
 #else
 #define ARRAY_SIZE 128
 //放大128倍后的sin整数表（128）
@@ -84,7 +84,7 @@ void FFT()
 	int Temp_Real,Temp_Imag,temp;                // 中间临时变量  
 	uint TEMP1; 
 	
-    for( i=1; i<=7; i++)                            /* for(1) */
+    for( i=1; i<=6; i++)                            /* for(1) */
     {
         b=1;
         b <<=(i-1);                                       //碟式运算，用于计算 隔多少行计算 例如 第一极 1和2行计算，，第二级
