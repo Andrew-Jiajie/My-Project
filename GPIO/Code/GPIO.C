@@ -143,10 +143,10 @@ void Timer0_ISR (void) interrupt 1          //interrupt address is 0x000B
 {
 	clr_TF0;
 	clr_TR0;                              		  //Stop Timer0
-    TL0 = LOBYTE(TIMER_DIV12_VALUE_40ms); 		//Find  define in "Function_define.h" "TIMER VALUE"
-    TH0 = HIBYTE(TIMER_DIV12_VALUE_40ms);
+    TL0 = LOBYTE(TIMER_DIV12_VALUE_10ms); 		//Find  define in "Function_define.h" "TIMER VALUE"
+    TH0 = HIBYTE(TIMER_DIV12_VALUE_10ms);
 	set_TR0;                              		  //Start Timer0
-	timer_count+=40;
+	timer_count+=10;
 	if(timer_count >= 1000){
 		timer_count=0;
 		wake_time++;
@@ -209,7 +209,7 @@ void reboot_audio()
 #define RED_P 80//50
 #define GREEN_P 80//38
 #define BLUE_P 80//38
-#define FADE_SPEED 9
+#define FADE_SPEED 6
 int red_record=0;
 int green_record=0;
 int blue_record=0;
@@ -292,7 +292,6 @@ int get_adc(void)
  void ADC_Finish()
 {
     uchar ADC_Count=0, i=0;
-	Enable_ADC_AIN5;
     while(ADC_Count<ARRAY_SIZE)
     {
       Fft_Real[LIST_TAB[ADC_Count]]=(get_adc()>>2)-256; //按LIST_TAB表里的顺序，进行存储 采样值,,
@@ -405,6 +404,7 @@ void main (void)
 	Enable_INT_Port1;
 	set_EPI;							// Enable pin interrupt
 	//set_EA;								// global enable bit
+	Enable_ADC_AIN5;
 
 #endif
 /*---------------------------------Main function-----------------------------------------------*/
@@ -454,6 +454,9 @@ void main (void)
 			int red=0, green=0, blue=0;
 			char CharToSend[60];
 			set_PWMRUN;
+			//Send_num(2);
+			//Send_num(get_adc()>>2);
+			//Send_Data_To_UART1(' ');
 			ADC_Finish();
 			FFT();
 #if 0
@@ -507,9 +510,9 @@ void main (void)
 		}
 
 		DEBUG_LED=1;			//let LED shining to detect if system active.
-		Delay_1ms(10);
+		Delay_1ms(2);
 		DEBUG_LED=0;
-		Delay_1ms(20);
+		Delay_1ms(4);
 		
 		
 		if(Reset_system==1){
